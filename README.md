@@ -2,6 +2,14 @@
 Human Wildlife Encounter Detection Method 
 To use this code please ensure that the POSTGIS database connects to Python and the variable db is updated to the name of the database.
 
+Create an empty database in POSTGRES\POSTGIS and enable the GIS extension by running the following commands:
+
+CREATE EXTENSION IF NOT EXISTS postgis;
+CREATE EXTENSION IF NOT EXISTS postgis_topology;
+
+Use the dump file included in the paper submission to restore the database.
+
+
 Ensure that the python environment has the required library installed.
 •	Tracklib
 •	Sys
