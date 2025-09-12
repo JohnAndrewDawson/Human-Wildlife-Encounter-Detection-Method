@@ -1,11 +1,21 @@
-﻿# %%
+# %%
 import sys
 import math
 import shapely as shp
 import psycopg2
 import numpy as np
 from typing import Union
+import time 
 
+import sys
+import os
+
+folder_path = r"C:\Users\JADawson\Desktop\tracklib_linked"
+
+if folder_path not in sys.path:
+    sys.path.insert(0, folder_path)
+
+import tracklib as tkl
 from tracklib.core import track as tk
 from tracklib.core import track_collection
 from tracklib.core import Obs
@@ -13,16 +23,268 @@ from tracklib.core import ObsTime
 from tracklib.core import ENUCoords
 from tracklib.core import makeCoords
 
-from tracklib.core import db
-
+# %%
 class WrongArgumentError(Exception):
     pass
 
+def enounter_events(
+        bbox,
+        head        = '',
+        tail        = '',
+        shift       = 15,
+        max_speed   = 1.25,  #Does not update
+        d_gap_a     = 500,
+        min_dist    = 25,
+        min_time    = 60,
+        HDA_radius  = 250,
+        d_gap_h     = 500,
+        height_h    = 1.6,  # Does not update!!! must update in QGIS code saves value in table comments
+        height_a    = 1,     # Does not update!!! must update in QGIS code saves value in table comments
+        t_gap       = 8 * 60,     
+        ECAh_radius = 10,
+        db          = 'ResRoute',
+        where       = ''):
+
+    find_comparable_routes(where, shift, head, tail, db)
+
+    conn = psycopg2.connect(database= db , user='postgres')
+
+    curs = conn.cursor()
+
+    qurry = """\
+        COMMENT ON TABLE 
+        """ + head + """traj_ints""" + tail + """ 
+        IS 
+        
+        'shift =  """ + str(shift) + """';
+        
+        """
+    curs.execute(qurry)
+
+    conn.commit()
+    curs.close()
+    conn.close()
+
+    source_table = head+'traj_ints'+tail
+
+    create_ppa_table(source_table, head, tail, db, bbox=bbox)
+
+    conn = psycopg2.connect(database= db , user='postgres')
+
+    curs = conn.cursor()
+
+    qurry = """\
+
+        COMMENT ON TABLE """ + head + """close_points_animal""" + tail + """ IS
+        
+        'source_table   = """+ str(source_table) + """
+        shift       = """ +str(shift)+ """
+        max_speed   = """ + str(1.25) + """
+        d_gap_a     =  """ + str(d_gap_a) + """';
+
+        
+        COMMENT ON TABLE """ + head + """ppa""" + tail + """ IS
+        
+        'source_table   = """+ str(source_table) + """
+        shift       = """ +str(shift)+ """
+        max_speed   = """ + str(1.25) + """
+        d_gap_a     =  """ + str(d_gap_a) + """';
+
+        """
+
+    curs.execute(qurry)
+
+    conn.commit()
+    curs.close()
+    conn.close()
+
+    source_table = head+'traj_ints'+tail
+
+    tracks, tracks_simp_new_filter, id_traj = create_filltered_hda_table(source_table, 
+                                                        head, 
+                                                        tail, 
+                                                        db, 
+                                                        HDA_radius, 
+                                                        esp = min_dist, 
+                                                        #mode = 1, 
+                                                        cells = [], 
+                                                        bbox = bbox, 
+                                                        bbox_grid = [],
+                                                        time_max=min_time)
+
+    conn = psycopg2.connect(database= db , user='postgres')
+
+    curs = conn.cursor()
+
+    qurry = """\
+        COMMENT ON TABLE """ + head + """hda""" + tail+ """ IS 
+        'source_table   =  """ + str(source_table) + """
+        shift       = """+ str(shift) + """
+        min_dist    = """+ str(min_dist) + """
+        min_time    = """+ str(min_time)+ """
+        HDA_radius  = """+ str(HDA_radius) + """
+        d_gap_h     = """+ str(d_gap_h)+"""'; 
+        """
+
+    curs.execute(qurry)
+
+    conn.commit()
+    curs.close()
+    conn.close()
+
+    source_ppa      =  'p2_ppa'
+    source_hda       =  'p2_hda' #+'_buff_'+str(HDA_radius)+'_filt_'+str(min_dist)+'_time_'+str(min_time)
+    source_pairing  =  'p2_traj_ints'
+
+    head = 'p2_'
+    tail = '' #'_buff_'+str(HDA_radius)+'_filt_'+str(min_dist)+'_time_'+str(min_time)+'_no_m_hum'
+
+    start = time.time()
+
+    create_encounter_events(source_ppa, 
+                            source_hda, 
+                            source_pairing,
+                            head, 
+                            tail, 
+                            comp_type = 'geom', 
+                            db = db)
+
+    ee_length = time.time()-start # 177.54374480247498 seconds
+
+    print(ee_length)
+
+    conn = psycopg2.connect(database= db , user='postgres')
+
+    curs = conn.cursor()
+
+    # adds comments to table saving the peremiters used for the table
+    qurry = """\
+        COMMENT ON TABLE """ + head + """encounter_event""" + tail+ """ IS 
+        'source_pairs   =  """ + str(source_pairing) + """
+        source_ppa   = """+ str(source_ppa) + """
+        source_hda   = """+ str(source_hda) + """
+        shift       = """ +str(shift)+ """
+        max_speed   = """ + str(1.25) + """
+        d_gap_a     =  """ + str(d_gap_a) + """
+        min_dist    = """+ str(min_dist) + """
+        min_time    = """+ str(min_time)+ """
+        HDA_radius  = """+ str(HDA_radius) + """
+        d_gap_h     = """+ str(d_gap_h)+"""
+        duration    = """+ str(ee_length)+"""'; 
+        """
+
+    curs.execute(qurry)
+
+    conn.commit()
+    curs.close()
+    conn.close()
+
+    print('------WAIT Visibility Check should be run in QGIS Before proceeding------')
+
+def Encounters(
+        bbox,
+        head        = '',
+        tail        = '',
+        shift       = 15,
+        max_speed   = 1.25,  #Does not update
+        d_gap_a     = 500,
+        min_dist    = 25,
+        min_time    = 60,
+        HDA_radius  = 250,
+        d_gap_h     = 500,
+        height_h    = 1.6,  # Does not update!!! must update in QGIS code saves value in table comments
+        height_a    = 1,     # Does not update!!! must update in QGIS code saves value in table comments
+        t_gap       = 8 * 60,     
+        ECAh_radius = 10,
+        db          = 'ResRoute',
+        where       = ''):
+
+    assign_encounters(head+'encounter_event'+tail, t_gap,  db)
+
+
+    source_table = head+'encounter_event'#+'_buff_'+str(HDA_radius)+'_filt_'+str(min_dist)+'_time_'+str(min_time)
+    source_pairing = head+'traj_ints'
+    source_ppa = head+'ppa'
+    source_hda = head+'hda'
+
+
+    start = time.time()
+    create_encounter_table(source_table, source_pairing, head, tail,  db)
+    ee_length = time.time()-start # 177.54374480247498 seconds
+
+
+    conn = psycopg2.connect(database= db , user='postgres')
+
+    curs = conn.cursor()
+
+    qurry = """\
+        COMMENT ON TABLE """ + head + """Encounter""" + tail+ """ IS 
+        'source_pairs   =  """ + str(source_pairing) + """
+        source_ee   = """+ str(source_table) + """
+        source_ppa  = """+ str(source_ppa) + """
+        source_hda  = """+ str(source_hda) + """
+        shift       = """ +str(shift)+ """
+        max_speed   = """ + str(1.25) + """
+        d_gap_a     = """ + str(d_gap_a) + """
+        min_dist    = """+ str(min_dist) + """
+        min_time    = """+ str(min_time)+ """
+        HDA_radius  = """+ str(HDA_radius) + """
+        d_gap_h     = """+ str(d_gap_h)+"""
+        duration    = """+ str(ee_length)+"""'; 
+        """
+
+    curs.execute(qurry)
+
+    conn.commit()
+    curs.close()
+    conn.close()
+
 def find_comparable_routes(where, shift, head, tail, db):
+    
+     """
+    Identifies and stores candidate human-animal trajectory pairs for encounter detection.
 
+    This function should be called first in the encounter detection workflow. It creates 
+    and populates a table in the specified SQL database with trajectory pairs (human and animal) 
+    that are close enough in time to be considered potential encounters. The resulting table 
+    is used by subsequent functions for more detailed analysis.
 
+    Parameters
+    ----------
+    values : dict
+        A dictionary containing the following keys:
+    
+        - 'Where': str  
+            Custom SQL WHERE clause to filter data sources (e.g., species, location, etc.).
+        
+        - 'Shift': int  
+            Maximum difference in day-of-year (DOY) allowed between human and animal 
+            trajectories for comparison.
+        
+        - 'head': str  
+            Optional prefix to be added to the output table name (useful for testing).
+        
+        - 'tail': str  
+            Optional suffix to be added to the output table name.
+        
+        - 'db': str  
+            Name or path of the SQL database to update.
 
+    Returns
+    -------
+    None
+        This function does not return anything in Python. It creates a new table 
+        in the linked database with candidate trajectory pairs for encounter analysis.
 
+    The created table includes the following columns:
+        - id_encounter: INTEGER PRIMARY KEY
+        - earliest: TIMESTAMP
+        - latest: TIMESTAMP
+        - date_animal: DATE
+        - date_human: DATE
+        - min_dist: NUMERIC
+        - vis: BOOLEAN
+     """
      conn = psycopg2.connect(database= db , user='postgres')
 
      curs = conn.cursor()
@@ -85,16 +347,71 @@ def find_comparable_routes(where, shift, head, tail, db):
 
     CREATE INDEX """ + head + """idx_traj_ints_id_traj_2""" + tail+ """ ON """ + head + """traj_ints""" + tail+ """(id_traj_2);
     CREATE INDEX """ + head + """idx_traj_ints_id_traj_1""" + tail+ """ ON """ + head + """traj_ints""" + tail+ """(id_traj_1);
-
-
-     """
+    """
      curs.execute(qurry)
 
      conn.commit()
      curs.close()
      conn.close()
 
-def create_ppa_table(source_table, head, tail, db, buffer_size, cells = [], bbox = [], bbox_grid = [], d_gap_a = 500):
+def create_ppa_table(source_table, head, tail, db, buffer_size = 0, cells = [], bbox = [], bbox_grid = [], d_gap_a = '500'):
+    """
+    Extracts and stores Potential Path Areas (PPAs) for animal trajectory pairs.
+
+    This function should be called after `find_comparable_routes`. It creates and populates
+    a table in the specified SQL database containing Potential Path Areas (PPAs) derived
+    from pairs of points in animal trajectories that may be part of an encounter event.
+
+    These PPAs are used in later analysis to evaluate possible overlap or proximity between
+    animal and human trajectories.
+
+    Parameters
+    ----------
+    values : dict
+        A dictionary containing the following keys:
+
+        - 'source_table' : str  
+            Name of the table containing candidate encounter events, typically created by 
+            `find_comparable_routes`.
+
+        - 'head' : str, optional  
+            Optional prefix to add to the output table name (useful for testing or versioning).
+
+        - 'tail' : str, optional  
+            Optional suffix to add to the output table name.
+
+        - 'db' : str  
+            Path or name of the SQL database to update.
+
+        - 'd_gap_a' : int  
+            Maximum allowed distance between consecutive points in an animal trajectory.
+            Trajectory segments exceeding this threshold will be excluded from PPA generation.
+
+    Returns
+    -------
+    None
+        This function does not return a Python object. It creates a new SQL table
+        in the specified database containing the generated PPAs.
+
+    The created table includes the following columns:
+
+        - id_point             : INTEGER
+        - temps                : TIME WITHOUT TIME ZONE
+        - geom                 : GEOMETRY
+        - id_sub_traj          : INTEGER
+        - id_traj              : INTEGER
+        - date                 : DATE
+        - next_id_point        : INTEGER
+        - next_temps           : TIME WITHOUT TIME ZONE
+        - next_geom            : GEOMETRY
+        - next_id_sub_traj     : INTEGER
+        - next_id_traj         : INTEGER
+        - ppa                  : GEOMETRY
+        - x_grid               : INTEGER
+        - y_grid               : INTEGER
+        - x_coord              : DOUBLE PRECISION
+        - y_coord              : DOUBLE PRECISION
+    """
 
     conn = psycopg2.connect(database= db, user='postgres')
 
@@ -123,11 +440,10 @@ def create_ppa_table(source_table, head, tail, db, buffer_size, cells = [], bbox
 
     alter table """ + head + """close_points_animal""" + tail+ """
     add primary key (id_point)
+
     """
 
-
     curs.execute(qurry)
-
 
     conn.commit()
     curs.close()
@@ -137,8 +453,7 @@ def create_ppa_table(source_table, head, tail, db, buffer_size, cells = [], bbox
 
     curs = conn.cursor()
 
-    print('Here')
-
+    print('close_points_animal table initialized')
 
     qurry = """\
         SELECT id_point, id_traj, temps,  st_x(geom), st_y(geom)
@@ -150,7 +465,7 @@ def create_ppa_table(source_table, head, tail, db, buffer_size, cells = [], bbox
 
     id_point_lst = []
 
-    print('Here 1')
+    print('close_points_animal data pulled')
 
     tracks = track_collection.TrackCollection()
     trace  = tk.Track([],1)
@@ -166,7 +481,7 @@ def create_ppa_table(source_table, head, tail, db, buffer_size, cells = [], bbox
                 continue
             if trace.size() <= 0:
                 continue
-            print(len(trace))
+            #(len(trace))
             trace.createAnalyticalFeature('id_point', id_point_lst)
             tracks.addTrack(trace)
             id_point_lst = []
@@ -174,26 +489,19 @@ def create_ppa_table(source_table, head, tail, db, buffer_size, cells = [], bbox
             trace.tid = id_traj
 
         id_point_lst.append(row[0])
-        trace.addObs(tk.TrackObs(tk.TrackENUCoords(row[3],row[4],-1),tk.TrackObsTime.readTimestamp(str(row[2]))))
+        trace.addObs(Obs(ENUCoords(row[3],row[4],-1),tk.ObsTime.readTimestamp(str(row[2]))))
 
-
-
-    print('Here 3')
-
-
+    print('Data placed in track collection')
+    print('Building PPA')
     tracks.addAnalyticalFeature(add_ppa)
-
-    print('Here 4')
-
+    print('PPA Finished')
 
     d = list(zip(
         tracks.getAnalyticalFeature('add_ppa'),
         tracks.getAnalyticalFeature('id_point')
     ))
 
-
-    print('Here 5')
-
+    print('Adding PPA to Database')
 
     curs.executemany("""
         update """ + head + """close_points_animal""" + tail+ """
@@ -201,8 +509,7 @@ def create_ppa_table(source_table, head, tail, db, buffer_size, cells = [], bbox
             where id_point = %s 
                 """,d)
 
-    print('Here 6')
-
+    print('Finished database update')
 
     conn.commit()
     curs.close()
@@ -230,7 +537,7 @@ def create_ppa_table(source_table, head, tail, db, buffer_size, cells = [], bbox
     conn = psycopg2.connect(database= db, user='postgres')
 
     curs = conn.cursor()
-
+    
     qurry = 'DROP TABLE IF EXISTS ' + head + 'ppa' + tail+ ';'
     curs.execute(qurry)
 
@@ -253,11 +560,11 @@ def create_ppa_table(source_table, head, tail, db, buffer_size, cells = [], bbox
         x_coord				double precision,
         y_coord 			double precision
         """
-    print('here 7')
+    print('PPA table created')
     
     table_name = head + 'ppa' + tail
     if not cells:
-        print('here 8')
+        print('Skipping Partitioning')
 
         qurry = """\
                 create table """ + table_name + """ (
@@ -268,7 +575,7 @@ def create_ppa_table(source_table, head, tail, db, buffer_size, cells = [], bbox
         conn.commit()
 
     elif cells:
-        print('here 8a')
+        print('Starting Partitioning')
 
         bb_1_list_ppa,_ = table_partitioning(table_name, 
                    variables, 
@@ -279,7 +586,7 @@ def create_ppa_table(source_table, head, tail, db, buffer_size, cells = [], bbox
                    cells,
                    db)
         
-    print('here 9')
+    print('Starting PPA Data Insertions')
 
     qurry = """\
     insert into """ + head + """ppa""" + tail+ """
@@ -318,7 +625,7 @@ def create_ppa_table(source_table, head, tail, db, buffer_size, cells = [], bbox
     set geom_line = st_makeline(geom,next_geom);
 
     delete from """ + head + """ppa""" + tail+ """
-    where st_length(geom_line) >= """ + d_gap_a + """;
+    where st_length(geom_line) >= """ + str(d_gap_a) + """;
 
     delete from """ + head + """ppa""" + tail+ """
     where id_traj != next_id_traj;
@@ -327,11 +634,7 @@ def create_ppa_table(source_table, head, tail, db, buffer_size, cells = [], bbox
     where next_id_traj is null;
 
     alter table """ + head + """ppa""" + tail+ """
-    add buffer geometry;
-
-    update """ + head + """ppa""" + tail+ """ 
-    set buffer = st_buffer(ppa,""" + str(buffer_size) + """);
-    
+    add buffer geometry;  
     
     CREATE INDEX """ + head + """ppa_index""" + tail+ """
         ON """ + head + """ppa""" + tail+ """
@@ -343,19 +646,35 @@ def create_ppa_table(source_table, head, tail, db, buffer_size, cells = [], bbox
     -- Create index on 'id_traj' column in 'ppa' table
     CREATE INDEX """ + head + """idx_id_traj__ppa""" + tail+ """ ON """ + head + """ppa""" + tail+ """(id_traj);
 
-    CREATE INDEX """ + head + """idx_ppa_grid""" + tail+ """ ON """ + head + """ppa""" + tail+ """(x_grid,y_grid);
+    CREATE INDEX """ + head + """idx_ppa_grid""" + tail+ """ ON """ + head + """ppa""" + tail+ """(x_grid,y_grid);    
 
-    
     """
 
     curs.execute(qurry)
-
-
+    
     conn.commit()
     curs.close()
     conn.close() 
+    print('---Create PPA Finished---')
 
 def add_ppa(track, i):
+    """
+    Adds Potential Path Area (PPA) geometry to GPS trajectory points.
+
+    This function is typically called by `create_ppa_table` to augment animal GPS tracks
+    with PPA geometry information for further spatial analysis.
+
+    Parameters
+    ----------
+    track : object
+        The trajectory object that will be enhanced by adding Potential Path Area (PPA) geometry.
+    Returns
+    -------
+    None
+        This function does not return a Python object. It adds PPA geometry to GPS tracks 
+        for later insertion into the SQL database.
+    """
+
 
     #print(track.tid)
     if i == track.size()-1:
@@ -471,9 +790,74 @@ def table_partitioning(table_name, variables, x_parition, y_partition, bbox, x_c
 
     return bb_1_list, bb_2_list
 
-def create_filltered_da_table(source_table, head, tail, db, buffer_size, esp, cells = [], bbox = [], bbox_grid = [], time_max=None, d_gap_h = 500):
+def create_filltered_hda_table(source_table, head, tail, db, buffer_size, esp, cells = [], bbox = [], bbox_grid = [], time_max=None, d_gap_h = '500'):
+    """
+    Creates and stores Human Disturbance Areas (HDAs) for human trajectory pairs.
 
-    # create close hum_points in tkl
+    This function should be called after `find_comparable_routes`. It creates and populates
+    a table in the specified SQL database containing Human Disturbance Areas (HDAs) derived
+    from pairs of points in human trajectories that may be part of an encounter event.
+
+    These HDAs are used in later analyses to evaluate possible overlap or proximity between
+    animal and human trajectories.
+
+    Parameters
+    ----------
+    source_table : str
+        Name of the table containing candidate encounter events, typically created by 
+        `find_comparable_routes`.
+
+    head : str, optional
+        Optional prefix to add to the output table name (useful for testing or versioning).
+
+    tail : str, optional
+        Optional suffix to add to the output table name.
+
+    db : str
+        Path or name of the SQL database to update.
+
+    buffer_size : int
+        The radius of the HDAs to create. This should represent the distance at which a human 
+        is likely to disturb the target animal based on study conditions.
+
+    esp : float
+        The distance parameter used by the Douglas–Peucker algorithm for trajectory simplification.
+
+    time_max : float or int
+        Preferred sampling frequency. Points from the original track will be re-added after the 
+        Douglas–Peucker algorithm wherever the sampling interval exceeds this value. No points 
+        will be interpolated; if no possible points can be added, the time gap is left unchanged.
+
+    d_gap_h : int
+        Maximum allowed distance between consecutive points in a human trajectory. Trajectory segments 
+        exceeding this threshold will be excluded from HDA generation.
+
+    Returns
+    -------
+    None
+        This function does not return a Python object. It creates a new SQL table
+        in the specified database containing the generated HDAs.
+
+    The created table includes the following columns:
+
+        - id_point             : INTEGER
+        - temps                : TIME WITHOUT TIME ZONE
+        - geom                 : GEOMETRY
+        - id_sub_traj          : INTEGER
+        - id_traj              : INTEGER
+        - date                 : DATE
+        - next_id_point        : INTEGER
+        - next_temps           : TIME WITHOUT TIME ZONE
+        - next_geom            : GEOMETRY
+        - next_id_sub_traj     : INTEGER
+        - next_id_traj         : INTEGER
+        - HDA                  : GEOMETRY
+        - x_grid               : INTEGER
+        - y_grid               : INTEGER
+        - x_coord              : DOUBLE PRECISION
+        - y_coord              : DOUBLE PRECISION
+    """
+
     conn = psycopg2.connect(database=db, user='postgres')
 
     curs = conn.cursor()
@@ -541,7 +925,7 @@ def create_filltered_da_table(source_table, head, tail, db, buffer_size, esp, ce
         id_traj.extend([trace.tid]*len(trace_simp))
         
     print('Simplification finished')
-    print('Number of traj after filtering' + str(len(tracks_simp)))
+    print('Number of traj after filtering : ' + str(len(tracks_simp)))
 
     #create da table
     conn = psycopg2.connect(database=db, user='postgres')
@@ -578,7 +962,7 @@ def create_filltered_da_table(source_table, head, tail, db, buffer_size, esp, ce
     table_name =  head + 'hda' + tail
 
     if not cells:
-        print('here 8')
+        #print('here 8')
 
         qurry = """\
                 create table """ + table_name + """ (
@@ -590,7 +974,7 @@ def create_filltered_da_table(source_table, head, tail, db, buffer_size, esp, ce
         conn.commit()
     elif cells:
 
-        print('here 8a')
+        #print('here 8a')
 
         _,bb_2_list_hda = table_partitioning(table_name, 
                    variables, 
@@ -690,11 +1074,13 @@ def create_filltered_da_table(source_table, head, tail, db, buffer_size, esp, ce
     update """ + head + """hda""" + tail+ """ 
     set geom_line = st_makeline(geom,next_geom);
 
-    -- delete from """ + head + """hda""" + tail+ """
-    -- where st_length(geom_line) >= """ + d_gap_h + """;
+    delete from """ + head + """hda""" + tail+ """
+    where st_length(geom_line) >= """ + str(d_gap_h) + """;
 
     update """ + head + """hda""" + tail+ """ 
-    set hda = ST_Simplify(st_buffer(ST_SetSRID(geom_line, 2154),""" + str(buffer_size)+ """),1);"""
+    set hda = ST_Simplify(st_buffer(ST_SetSRID(geom_line, 2154),""" + str(buffer_size)+ """),1);
+      
+    """
 
 
     curs.execute(qurry)
@@ -979,10 +1365,52 @@ def add_traces_from_lists(LINES, AF_list):
 
     return tracks
 
-def create_encounter_events(source_ppa, source_hda, source_pairings, head, tail, comp_type, db, search_hda = [], search_ppa = []):
-    
-    # Was create_encounter_event 
-    #encounter_event became encounter_event
+def create_encounter_events(source_ppa, source_hda, source_pairings, head, tail, comp_type, db, search_hda=None, search_ppa=None):
+    """
+    Compares animal Potential Path Areas (PPA) to human Disturbance Areas (HDA) for temporally close trajectories.
+
+    This function analyzes spatial overlaps between animal PPAs and human disturbance areas for trajectory pairs
+    that are sufficiently close in time, based on a specified temporal shift. It should be called after
+    the PPA and HDA tables have been created.
+
+    Parameters
+    ----------
+    source_ppa : str
+        Name of the table containing animal Potential Path Areas.
+
+    source_hda : str
+        Name of the table containing human Disturbance Areas.
+
+    source_pairings : str
+        Name of the table containing trajectory pairings.
+
+    head : str
+        Prefix to add to the output table name (useful for testing or distinguishing tables).
+
+    tail : str
+        Suffix to add to the output table name (useful for testing or distinguishing tables).
+
+    comp_type : str
+        Type of comparison or method used for encounter event detection.
+
+    db : str
+        Name or path of the SQL database where the encounter events table will be created and updated.
+
+    search_hda : list, optional
+        List of specific human disturbance area identifiers or filters to limit the search (default is None).
+
+    search_ppa : list, optional
+        List of specific potential path area identifiers or filters to limit the search (default is None).
+
+    Returns
+    -------
+    None
+        This function does not return a value.
+        It creates and populates a table containing encounter events, representing potential small segments of an encounter.
+    """
+
+
+
 
     if comp_type.lower() == 'grid':
         search_by = """\
@@ -990,11 +1418,11 @@ def create_encounter_events(source_ppa, source_hda, source_pairings, head, tail,
                         and abs(a_.y_grid-b_.y_grid) <= 35
                         and a_.temps <= b_.next_temps 
                         and	b_.temps <= a_.next_temps
-                        and	st_intersects(a_.ppa, b_.da)
+                        and	st_intersects(a_.ppa, b_.hda)
                     """
     elif comp_type.lower() == 'geom':
         search_by = """\
-                            st_intersects(a_.ppa, b_.da)
+                            st_intersects(a_.ppa, b_.hda)
                         and a_.temps <= b_.next_temps 
                         and	b_.temps <= a_.next_temps
                     """
@@ -1117,15 +1545,41 @@ def create_encounter_events(source_ppa, source_hda, source_pairings, head, tail,
 
     curs.execute(qurry)
 
-
     conn.commit()
     curs.close()
     conn.close()
     return qurry
 
-def assign_encoutners(source_table,  db):
+def assign_encounters(source_table, threshold, db):
+    """
+    Assigns encounter IDs to consecutive encounter events based on specified criteria.
 
-    #qurrys specific data
+    This function groups consecutive encounter events that meet defined temporal criteria 
+    into the same encounter by assigning matching encounter IDs. It updates the source table 
+    with these assigned IDs.
+
+    It should be called after visibility processing in QGIS (either within the QGIS application 
+    or via Python integration) and before creating encounter summary tables.
+
+    Parameters
+    ----------
+    source_table : str
+        Name of the table containing encounter events, typically created by `create_encounter_events`.
+
+    threshold : float
+        Maximum allowed time gap between two encounter events for them to be considered part 
+        of the same encounter.
+
+    db : str
+        Name or path of the SQL database containing the encounter events table to be updated.
+
+    Returns
+    -------
+    None
+        This function does not return a value.
+        It updates the encounter events table in the linked database by assigning encounter IDs.
+    """
+
 
     conn = psycopg2.connect(database= db, user='postgres')
 
@@ -1133,7 +1587,6 @@ def assign_encoutners(source_table,  db):
 
     save_print = ObsTime.getPrintFormat()
     ObsTime.setPrintFormat("4Y-2M-2D 2h:2m:2s")
-    
     
     qurry = """\
 
@@ -1217,14 +1670,12 @@ def assign_encoutners(source_table,  db):
     #trace.createAnalyticalFeature('date_h', date_human)
     #trace.createAnalyticalFeature('date_a', date_animal)
 
-
-    trace.addAnalyticalFeature(trace_segment)
+    trace.addAnalyticalFeature(make_trace_segment(threshold))
     segmentation(trace, ["trace_segment"],"out",[0.5],"and")
     tracks = split(trace, "out")
     
     for j in range(len(tracks)):
         id_encounter_create(tracks,j)
-
 
     d = list(zip(tracks.getAnalyticalFeature('id_encounter_event'),tracks.getAnalyticalFeature('id_encounter')))
 
@@ -1239,7 +1690,6 @@ def assign_encoutners(source_table,  db):
     alter table """ + source_table + """
     add id_encounter integer""")
 
-
     curs.executemany("""
     update """ + source_table + """
     set id_encounter = %s
@@ -1247,34 +1697,37 @@ def assign_encoutners(source_table,  db):
     """,(list(zip(tracks.getAnalyticalFeature('id_encounter'),
         tracks.getAnalyticalFeature('id_encounter_event')))))
 
-
     conn.commit()
     curs.close()
     conn.close()
     
-    
     ObsTime.setPrintFormat(save_print)
 
-def trace_segment (track, i):
-    id_i = track.getObsAnalyticalFeature('id_traj',i)
-    id_2 = track.getObsAnalyticalFeature('id_traj',i+1)
-    
-    name_i = track.getObsAnalyticalFeature('id_traj_2',i)
-    name_2 = track.getObsAnalyticalFeature('id_traj_2',i+1)
+def make_trace_segment(threshold_seconds):
+    def trace_segment (track, i):
+        id_i = track.getObsAnalyticalFeature('id_traj',i)
+        id_2 = track.getObsAnalyticalFeature('id_traj',i+1)
+        
+        name_i = track.getObsAnalyticalFeature('id_traj_2',i)
+        name_2 = track.getObsAnalyticalFeature('id_traj_2',i+1)
 
-    time_gap = track.getT(i+1) - track.getT(i)
-    
-    if id_i != id_2 or name_i != name_2 or time_gap > 8 * 60:
-        return 1
-    else:
-        return 0
+        time_gap = track.getT(i+1) - track.getT(i)
+        
+        if id_i != id_2 or name_i != name_2 or time_gap > threshold_seconds:
+            return 1
+        else:
+            return 0
+    return trace_segment
 
 def id_encounter_create(track,j):
-    track[j].createAnalyticalFeature('id_encounter',j)
+    track[j].createAnalyticalFeature('id_encounter', j)
 
 def nan_to_null(f,
         _NULL=psycopg2.extensions.AsIs('NULL'),
         _Float=psycopg2.extensions.Float):
+    
+    """
+    Is used to convert nan valuses from python when uploading to SQL"""
     if not np.isnan(f):
         return _Float(f)
     return _NULL
@@ -1394,10 +1847,49 @@ def split(track, source, limit=0):
     return NEW_TRACES
 
 def isnan(number: Union[int, float]) -> bool:   
-    """Check if two numbers are different"""
+    """Called to """
     return number != number
 
-def create_encounter_table(source_table, traj_pair_tables, head, tail,  db):
+def create_encounter_table(source_table, traj_pair_tables, head, tail, db):
+    """
+    Creates and populates an encounter summary table in the specified SQL database.
+
+    This function should be run after `assign_encounters` has completed. It generates a table 
+    that summarizes encounter events between trajectories, using data from the source encounter 
+    events and trajectory pair tables.
+
+    Parameters
+    ----------
+    source_table : str
+        Name of the table containing encounter events, typically created by `create_encounter_events`.
+
+    traj_pair_tables : str
+        Name of the table containing trajectory pairs, typically created by `find_comparable_routes`.
+
+    head : str
+        Prefix to add to the encounter table name (useful for testing or distinguishing tables).
+
+    tail : str
+        Suffix to add to the encounter table name (useful for testing or distinguishing tables).
+
+    db : str
+        Name or path of the SQL database where the encounter table will be created and updated.
+
+    Returns
+    -------
+    None
+        This function does not return a value.
+        It creates and populates an encounter table in the database with the following columns:
+
+        - id_encounter (INTEGER PRIMARY KEY)
+        - earliest_time (TIMESTAMP or DATETIME)
+        - latest_time (TIMESTAMP or DATETIME)
+        - date_animal (DATE)
+        - date_human (DATE)
+        - min_dist (NUMERIC)
+        - vis (BOOLEAN)
+    """
+
 
     conn = psycopg2.connect(database=db, user='postgres')
 
@@ -1434,7 +1926,7 @@ def create_encounter_table(source_table, traj_pair_tables, head, tail,  db):
             b_.date_1 as date_animal,
             b_.date_2 as date_human,
             MIN(a_.shortest_length) AS min_dist, -- MIN(ST_Length(ST_ShortestLine(ppa, geom_line_2))) AS min_dist,
-            bool_or(a_.sit_lin) as vis
+            bool_or(a_.vis_grid) as vis
         FROM 
             """+source_table+""" as a_
         join 	"""+traj_pair_tables+""" as b_
