@@ -132,12 +132,9 @@ def enounter_events(
     curs.close()
     conn.close()
 
-    source_ppa      =  'p2_ppa'
-    source_hda       =  'p2_hda' #+'_buff_'+str(HDA_radius)+'_filt_'+str(min_dist)+'_time_'+str(min_time)
-    source_pairing  =  'p2_traj_ints'
-
-    head = 'p2_'
-    tail = '' #'_buff_'+str(HDA_radius)+'_filt_'+str(min_dist)+'_time_'+str(min_time)+'_no_m_hum'
+    source_ppa       =  head+'ppa'+tail
+    source_hda       =  head+'hda'+tail
+    source_pairing   =  head+'traj_ints'+tail
 
     start = time.time()
 
