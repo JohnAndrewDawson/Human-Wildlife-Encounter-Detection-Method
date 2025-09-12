@@ -1,11 +1,174 @@
+#%%# %%
 #from qgis.core import QgsVectorLayer, QgsField, QgsFeature, QgsGeometry, QgsPointXY, QgsProject
 from PyQt5.QtCore import QVariant
 import psycopg2
 import time
 start_time = time.time()
 import numpy as np
+import ast
 
-def viss(encounter_event_table, close_points_table, da_tables,height_animal, height_human, db):
+from ViewshedAnalysis.algorithms.viewshed_intervisibility import Intervisibility
+from ViewshedAnalysis.algorithms.modules import Raster as rst
+from ViewshedAnalysis.algorithms.modules import Points as pts
+from ViewshedAnalysis.algorithms.modules import visibility as ws
+
+def pairs (self,targets):
+
+     for pt1 in self.pt:
+
+        id1 = self.pt[pt1]["id"]        
+        x,y = self.pt[pt1]["pix_coord"]
+        
+        r = self.pt[pt1]["radius"] #it's pixelised after take !!
+
+        radius_pix= int(r); r_sq = r**2
+        
+        max_x, min_x = x + radius_pix, x - radius_pix
+        max_y, min_y = y + radius_pix, y - radius_pix
+
+        self.pt[pt1]["targets"]={}
+        
+        pt2 = pt1
+        value = targets.pt[pt1]
+
+        id2 = targets.pt[pt2]["id"]
+
+        x2, y2 = value["pix_coord"]
+
+        if id1==id2 and x == x2 and y==y2 : 
+            self.pt[pt1]["targets"][pt2]=value
+            continue
+            
+        if min_x <= x2 <= max_x and min_y <= y2 <= max_y:
+            if  (x-x2)**2 + (y-y2)**2 <= r_sq:
+
+                self.pt[pt1]["targets"][pt2]=value
+
+def processAlgorithm_pairs(self, parameters, context, feedback):
+    print('Correct Vis')
+    raster = self.parameterAsRasterLayer(parameters,self.DEM, context)
+    observers = self.parameterAsSource(parameters,self.OBSERVER_POINTS,context)
+    targets = self.parameterAsSource(parameters,self.TARGET_POINTS,context)
+    write_negative = self.parameterAsBool(parameters,self.WRITE_NEGATIVE,context)
+
+    useEarthCurvature = self.parameterAsBool(parameters,self.USE_CURVATURE,context)
+    refraction = self.parameterAsDouble(parameters,self.REFRACTION,context)
+    precision = 1#self.parameterAsInt(parameters,self.PRECISION,context)
+
+    
+    dem = rst.Raster(raster.source())
+   
+    o= pts.Points(observers)       
+    t= pts.Points(targets)
+    
+    setattr(o, 'pairs', pairs)
+    #setattr(t, 'pairs', pairs)
+    
+    required =["observ_hgt", "radius"]
+
+    miss1 = o.test_fields (required)
+    miss2 = t.test_fields (required)
+
+    if miss1 or miss2:
+
+        msg = ("\n ********** \n MISSING FIELDS! \n" +
+            "\n Missing in observer points: " + ", ".join(miss1) +
+            "\n Missing in target points: " + ", ".join(miss2))
+           
+        raise QgsProcessingException(msg)
+             
+    o.take(dem.extent, dem.pix)
+    t.take(dem.extent, dem.pix)
+
+    if o.count == 0 or t.count == 0:
+
+        msg = ("\n ********** \n ERROR! \n"
+            "\n No view points/target points in the chosen area!")
+        
+        raise QgsProcessingException(msg)
+       
+    fds = [("Source", QVariant.String, 'string',255),
+           ("Target", QVariant.String, 'string',255),
+           ("TargetSize", QVariant.Double, 'double',10,3)]
+
+    qfields = QgsFields()
+    for f in fds : qfields.append(QgsField(*f))
+    
+    (sink, dest_id) = self.parameterAsSink(parameters, self.OUTPUT, context,
+                        qfields,
+                        QgsWkbTypes.LineStringZ, #We store Z Geometry now
+                        o.crs)
+                        
+    feedback.setProgressText("*1* Constructing the network")
+    
+    print('The network is just pairs')
+    o.pairs(o,t)
+   
+    dem.set_master_window(o.max_radius,
+                        curvature =useEarthCurvature,
+                        refraction = refraction )
+    
+    cnt = 0
+    
+    feedback.setProgressText("*2* Testing visibility")   
+    for key, ob in o.pt.items():
+
+        ws.intervisibility(ob, dem, interpolate = precision)
+        
+        #Get altitude abs for observer
+        x,y= ob["pix_coord"]
+        radius_pix = dem.radius_pix
+        dem.open_window ((x,y))
+        data= dem.window
+        z_abs =   ob["z"] + data [radius_pix,radius_pix]
+        #3D point         
+        p1 = QgsPoint(float(ob["x_geog"]), float(ob["y_geog"] ), float(ob["z"]+data [radius_pix,radius_pix]))
+
+        for key, tg in ob["targets"].items():
+            
+            h = tg["depth"]           
+            
+            if not write_negative:
+                if h<0: continue
+            #Get altitude abs for target
+            x_tg, y_tg = tg["pix_coord"]  # Target pixel coordinates
+            dem.open_window((x_tg, y_tg))
+            data= dem.window
+            z =   data [radius_pix,radius_pix]
+            try: z_targ = tg["z_targ"]
+            except : 
+                try: z_targ = tg["z"] 
+                except : z_targ = 0
+            
+            p2 = QgsPoint(float(tg["x_geog"]), float(tg["y_geog"] ), float(z+z_targ))
+
+            feat = QgsFeature()
+            
+
+            feat.setGeometry(QgsGeometry.fromPolyline([p1, p2]))
+
+            feat.setFields(qfields)
+            feat['Source'] = ob["id"]
+            feat['Target'] = tg["id"]
+            feat['TargetSize'] = float(h) #.                
+       
+            sink.addFeature(feat, QgsFeatureSink.FastInsert) 
+ 
+        cnt +=1
+        feedback.setProgress(int((cnt/o.count) *100))
+        if feedback.isCanceled(): return {}
+
+    feedback.setProgressText("*3* Drawing the network")
+	
+
+    return {self.OUTPUT: dest_id}
+
+def viss(encounter_event_table, 
+         close_points_table, 
+         da_tables,
+         height_animal, 
+         height_human, 
+         db):
 
 
     ll_x = 924987.5
@@ -269,8 +432,6 @@ def viss(encounter_event_table, close_points_table, da_tables,height_animal, hei
         x_grid_2 integer,
         y_grid_2 integer,
         vis boolean);
-        
-        
         """
         curs.execute(query)
         print('here 10')
@@ -302,115 +463,118 @@ def viss(encounter_event_table, close_points_table, da_tables,height_animal, hei
         len(gridx)
         len(sorted_truefalse)
         len(attrs)
+
+        conn = psycopg2.connect(database= db, user='postgres')
+        curs = conn.cursor()
+        ll_x = 924987.5
+        ll_y = 6500012.5
+        query = """\
+        DROP TABLE IF EXISTS ttt;
+
+        CREATE TEMPORARY TABLE ttt AS
+        (SELECT 
+                id_encounter_event,
+                id_point,
+                geom,
+                id_point_2,
+                geom_2,
+                floor((st_x(geom)-"""+ str(ll_x) +""")/25) as x_grid, 
+                floor((st_y(geom)-"""+ str(ll_y) +""")/25) as y_grid,
+                floor((st_x(geom_2)-"""+ str(ll_x) +""")/25) as x_grid_2, 
+                floor((st_y(geom_2)-"""+ str(ll_y) +""")/25) as y_grid_2
+            FROM """+ encounter_event_table +"""
+            UNION ALL	
+            SELECT 
+                id_encounter_event, 
+                next_id_point,
+                next_geom,
+                next_id_point_2,
+                next_geom_2,
+                floor((st_x(next_geom)-"""+ str(ll_x) +""")/25) as x_grid, 
+                floor((st_y(next_geom)-"""+ str(ll_y) +""")/25) as y_grid,
+                floor((st_x(next_geom_2)-"""+ str(ll_x) +""")/25) as x_grid_2, 
+                floor((st_y(next_geom_2)-"""+ str(ll_y) +""")/25) as y_grid_2            
+            FROM """+ encounter_event_table +""" 
+            UNION ALL	
+            SELECT 
+                id_encounter_event,
+                id_point,
+                geom,
+                next_id_point_2,
+                next_geom_2,
+                floor((st_x(geom)-"""+ str(ll_x) +""")/25) as x_grid, 
+                floor((st_y(geom)-"""+ str(ll_y) +""")/25 )as y_grid,
+                floor((st_x(next_geom_2)-"""+ str(ll_x) +""")/25) as x_grid_2, 
+                floor((st_y(next_geom_2)-"""+ str(ll_y) +""")/25) as y_grid_2 
+            FROM """+ encounter_event_table +""" 
+            UNION ALL	
+            SELECT 
+                id_encounter_event,
+                next_id_point,
+                next_geom,
+                id_point_2,
+                geom_2,
+                floor((st_x(next_geom)-"""+ str(ll_x) +""")/25) as x_grid, 
+                floor((st_y(next_geom)-"""+ str(ll_y) +""")/25) as y_grid,
+                floor((st_x(geom_2)-"""+ str(ll_x) +""")/25) as x_grid_2, 
+                floor((st_y(geom_2)-"""+ str(ll_y) +""")/25) as y_grid_2             
+            FROM """+ encounter_event_table +""" 
+            ORDER BY id_encounter_event, x_grid, y_grid
+        );
+
+                    
+        drop table if exists temppp;
+        CREATE TEMPORARY TABLE temppp (
+            id_encounter_event INTEGER PRIMARY KEY,
+            vis BOOLEAN);
+
+        insert into temppp (id_encounter_event, vis)	
+        select a_.id_encounter_event, bool_or(b_.vis)
+        from ttt as a_
+        left join vis_grid as b_
+            on			a_.x_grid	= b_.x_grid
+            and 		a_.y_grid	= b_.y_grid
+            and 		a_.x_grid_2	= b_.x_grid_2
+            and 		a_.y_grid_2	= b_.y_grid_2
+        group by id_encounter_event;
+
+        alter table """+ encounter_event_table +"""
+        DROP COLUMN IF EXISTS vis_grid;
+                            
+        alter table """+ encounter_event_table +"""
+        add vis_grid boolean;
+
+        drop index if exists id_encounter_event_"""+ encounter_event_table +"""_index;
+        CREATE INDEX id_encounter_event_"""+ encounter_event_table +"""_index 
+        ON """+ encounter_event_table +"""(id_encounter_event);
+
+
+        UPDATE """+ encounter_event_table +""" as a_
+        SET vis_grid = (
+        SELECT vis
+        FROM temppp
+        WHERE temppp.id_encounter_event = a_.id_encounter_event)"""
+        curs.execute(query)
+        
+        conn.commit()
+        curs.close()
+        conn.close()
+
         return result, gridx , sorted_truefalse, attrs
 
     except Exception as e:
         print(f"An error occurred: {e}")
-		
-	
+
+# Bind the 'pairs' function to the Points class as a method
+#setattr(pts, 'pairs', pairs)
+
+# Bind the 'processAlgorithm_pairs' function to the Intervisibility class as a method
+setattr(Intervisibility, 'processAlgorithm', processAlgorithm_pairs)
 
 
-
-
-    conn = psycopg2.connect(database= db, user='postgres')
-    curs = conn.cursor()
-    ll_x = 924987.5
-    ll_y = 6500012.5
-    query = """\
-    DROP TABLE IF EXISTS ttt;
-
-	CREATE TEMPORARY TABLE ttt AS
-	(SELECT 
-            id_encounter_event,
-            id_point,
-            geom,
-            id_point_2,
-            geom_2,
-            floor((st_x(geom)-"""+ str(ll_x) +""")/25) as x_grid, 
-            floor((st_y(geom)-"""+ str(ll_y) +""")/25) as y_grid,
-            floor((st_x(geom_2)-"""+ str(ll_x) +""")/25) as x_grid_2, 
-            floor((st_y(geom_2)-"""+ str(ll_y) +""")/25) as y_grid_2
-        FROM """+ encounter_event_table +"""
-        UNION ALL	
-        SELECT 
-            id_encounter_event, 
-            next_id_point,
-            next_geom,
-            next_id_point_2,
-            next_geom_2,
-            floor((st_x(next_geom)-"""+ str(ll_x) +""")/25) as x_grid, 
-            floor((st_y(next_geom)-"""+ str(ll_y) +""")/25) as y_grid,
-            floor((st_x(next_geom_2)-"""+ str(ll_x) +""")/25) as x_grid_2, 
-            floor((st_y(next_geom_2)-"""+ str(ll_y) +""")/25) as y_grid_2            
-        FROM """+ encounter_event_table +""" 
-        UNION ALL	
-        SELECT 
-            id_encounter_event,
-            id_point,
-            geom,
-            next_id_point_2,
-            next_geom_2,
-            floor((st_x(geom)-"""+ str(ll_x) +""")/25) as x_grid, 
-            floor((st_y(geom)-"""+ str(ll_y) +""")/25 )as y_grid,
-            floor((st_x(next_geom_2)-"""+ str(ll_x) +""")/25) as x_grid_2, 
-            floor((st_y(next_geom_2)-"""+ str(ll_y) +""")/25) as y_grid_2 
-        FROM """+ encounter_event_table +""" 
-        UNION ALL	
-        SELECT 
-            id_encounter_event,
-            next_id_point,
-            next_geom,
-            id_point_2,
-            geom_2,
-            floor((st_x(next_geom)-"""+ str(ll_x) +""")/25) as x_grid, 
-            floor((st_y(next_geom)-"""+ str(ll_y) +""")/25) as y_grid,
-            floor((st_x(geom_2)-"""+ str(ll_x) +""")/25) as x_grid_2, 
-            floor((st_y(geom_2)-"""+ str(ll_y) +""")/25) as y_grid_2             
-        FROM """+ encounter_event_table +""" 
-        ORDER BY id_encounter_event, x_grid, y_grid
-    );
-
-				
-	drop table if exists temppp;
-	CREATE TEMPORARY TABLE temppp (
-		id_encounter_event INTEGER PRIMARY KEY,
-		vis BOOLEAN);
-
-	insert into temppp (id_encounter_event, vis)	
-	select a_.id_encounter_event, bool_or(b_.vis)
-	from ttt as a_
-	left join vis_grid as b_
-		on			a_.x_grid	= b_.x_grid
-		and 		a_.y_grid	= b_.y_grid
-		and 		a_.x_grid_2	= b_.x_grid_2
-		and 		a_.y_grid_2	= b_.y_grid_2
-	group by id_encounter_event;
-
-	alter table """+ encounter_event_table +"""
-	DROP COLUMN IF EXISTS vis_grid;
-						
-	alter table """+ encounter_event_table +"""
-	add vis_grid boolean;
-
-	drop index if exists id_encounter_event_"""+ encounter_event_table +"""_index;
-	CREATE INDEX id_encounter_event_"""+ encounter_event_table +"""_index 
-	ON """+ encounter_event_table +"""(id_encounter_event);
-
-
-	UPDATE """+ encounter_event_table +""" as a_
-	SET vis_grid = (
-	SELECT vis
-	FROM temppp
-	WHERE temppp.id_encounter_event = a_.id_encounter_event)"""
-    curs.execute(query)
-    
-    conn.commit()
-    curs.close()
-    conn.close()
-
-result, lst1 , lst2, attrs  = viss('dldlencounter_event',
-                                    'dldlclose_points_animal',
-                                    'dldlhda',
-                                    1,
-                                    1.6,
-                                    'ResRoute')
+result, lst1 , lst2, attrs  = viss( 'p2_encounter_event', 
+         'close_points_table', 
+         'da_tables',
+         1, 
+         1.6, 
+         'ResRoute')
