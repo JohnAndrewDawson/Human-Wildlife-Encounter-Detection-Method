@@ -69,24 +69,22 @@ my_utils.enounter_events(
         db,
         where)
 
-
-
-# %%  Seconf Half After running visibility
+# %%  Second Half After running visibility
 
 my_utils.Encounters(
         bbox,
         head        = head,
         tail        = tail,
-        shift       = 15,
-        max_speed   = 1.25,  #Does not update
-        d_gap_a     = 500,
-        min_dist    = 25,
-        min_time    = 60,
-        HDA_radius  = 250,
-        d_gap_h     = 500,
-        height_h    = 1.6,  # Does not update!!! must update in QGIS code saves value in table comments
-        height_a    = 1,     # Does not update!!! must update in QGIS code saves value in table comments
-        t_gap       = 8 * 60,     
-        ECAh_radius = 10,
+        shift       = shift,
+        max_speed   = max_speed,  #Does not update
+        d_gap_a     = d_gap_a,
+        min_dist    = min_dist,
+        min_time    = min_time,
+        HDA_radius  = HDA_radius,
+        d_gap_h     = d_gap_h,
+        height_h    = height_h,  # Does not update!!! must update in QGIS code saves value in table comments
+        height_a    = height_a,     # Does not update!!! must update in QGIS code saves value in table comments
+        t_gap       = t_gap,     
+        ECAh_radius = ECAh_radius,
         db          = 'ResRoute',
-        where       = '')
+        where       = where)
