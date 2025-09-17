@@ -12,6 +12,87 @@ from ViewshedAnalysis.algorithms.modules import Raster as rst
 from ViewshedAnalysis.algorithms.modules import Points as pts
 from ViewshedAnalysis.algorithms.modules import visibility as ws
 
+"""
+    Checks if paired points in a human-wildlife encounter have intervisibility.
+
+    This function pulls from an SQL encounter_event table and checks intervisibility between all pairs.
+
+    It should be called after creating an encounter_event table but before assigning `id_encounter`.
+
+    Parameters
+    ----------
+    encounter_event_table : str
+        Name of the table containing encounter events, typically created by `create_encounter_events`.
+
+    chamois_height : float
+        The estimated height of the animal involved in the encounter.
+
+    human_height : float
+        The estimated height of the human involved in the encounter.
+    
+    vis_column : str
+        The name of the column that will be created and store whether there was intervisibility.
+    
+    DEM_path : str
+        The file path to the Digital Elevation Model (DEM) that will be used for testing intervisibility.
+        
+    db : str
+        Name or path of the SQL database containing the encounter events table to be updated.
+
+    Returns
+    -------
+    None
+        This function does not return a value. It updates the encounter events table in the linked database by assigning visibility booleans.
+"""
+
+# Uncomment one set of variables and run visibility
+# This Code must be run in a QGIS python environment
+
+db       = 'ResRoute'
+DEM_path = 'D:/AOI/bouge_elev.tif'
+
+"""encounter_event_table = 'exp_encounter_event_default'
+chamois_height        = 1
+human_height          = 1.6
+vis_column            = 'vis_grid'"""
+
+"""encounter_event_table = 'exp_encounter_event_hda_500'
+chamois_height        = 1
+human_height          = 1.6
+vis_column            = 'vis_grid'"""
+
+"""encounter_event_table = 'exp_encounter_event_d_gap_h_none'
+chamois_height        = 1
+human_height          = 1.6
+vis_column            = 'vis_grid'"""
+
+
+"""encounter_event_table = 'exp_encounter_event_d_gap_a_none'
+chamois_height        = 1
+human_height          = 1.6
+vis_column            = 'vis_grid'"""
+
+
+"""encounter_event_table = 'public.exp_encounter_default'
+chamois_height        = 0.8
+human_height          = 1.6
+vis_column            = 'vis_grid_chamois_8_dm'"""
+
+
+"""encounter_event_table = 'exp_encounter_default'
+chamois_height        = 1.2
+human_height          = 1.6
+vis_column            = 'vis_grid_chamois_12_dm'"""
+
+
+"""encounter_event_table = 'exp_encounter_default'
+chamois_height        = 1
+human_height          = 2
+vis_column            = 'vis_grid_human_2_m'"""
+
+'---------------------------------------------------------------------------'
+
+
 def pairs (self,targets):
 
      for pt1 in self.pt:
@@ -164,11 +245,10 @@ def processAlgorithm_pairs(self, parameters, context, feedback):
     return {self.OUTPUT: dest_id}
 
 def viss(encounter_event_table, 
-         close_points_table, 
-         da_tables,
          height_animal, 
          height_human, 
-         db):
+         db,
+         vis_column = 'vis_grid'):
 
 
     ll_x = 924987.5
@@ -328,7 +408,7 @@ def viss(encounter_event_table,
     ani_view = processing.run("visibility:createviewpoints", {
         "OBSERVER_POINTS" :  layer,
         'OBSERVER_ID': 'grid_id',
-        "DEM" : 'D:/AOI/bouge_elev.tif',
+        "DEM" : DEM_path,
         "RADIUS": rad,
         "OBS_HEIGHT": obs_h_1,
         "TARGET_HEIGHT": obs_h_2,
@@ -340,7 +420,7 @@ def viss(encounter_event_table,
     human_view = processing.run("visibility:createviewpoints", {
         "OBSERVER_POINTS" :  layer2,
         'OBSERVER_ID': 'grid_id_2',
-        "DEM" : 'D:/AOI/bouge_elev.tif',
+        "DEM" : DEM_path,
         "RADIUS": rad,
         "OBS_HEIGHT": obs_h_2,
         "TARGET_HEIGHT": obs_h_1,
@@ -353,7 +433,7 @@ def viss(encounter_event_table,
             "OBSERVER_POINTS": ani_view['OUTPUT'],
             "TARGET_POINTS"  : human_view['OUTPUT'],
             "WRITE_NEGATIVE" : True,
-            "DEM": 'D:/AOI/bouge_elev.tif',
+            "DEM": DEM_path,
             "OUTPUT" : QgsProcessing.TEMPORARY_OUTPUT
             # "OUTPUT": 'C:/Users/JADawson/Desktop/Qgis_Pyhton/temp_files/dl_vi.shp'
         })['OUTPUT']
@@ -539,10 +619,10 @@ def viss(encounter_event_table,
         group by id_encounter_event;
 
         alter table """+ encounter_event_table +"""
-        DROP COLUMN IF EXISTS vis_grid;
+        DROP COLUMN IF EXISTS """+vis_column+""";
                             
         alter table """+ encounter_event_table +"""
-        add vis_grid boolean;
+        add """+vis_column+""" boolean;
 
         drop index if exists id_encounter_event_"""+ encounter_event_table +"""_index;
         CREATE INDEX id_encounter_event_"""+ encounter_event_table +"""_index 
@@ -550,7 +630,7 @@ def viss(encounter_event_table,
 
 
         UPDATE """+ encounter_event_table +""" as a_
-        SET vis_grid = (
+        SET """+vis_column+""" = (
         SELECT vis
         FROM temppp
         WHERE temppp.id_encounter_event = a_.id_encounter_event)"""
@@ -572,9 +652,8 @@ def viss(encounter_event_table,
 setattr(Intervisibility, 'processAlgorithm', processAlgorithm_pairs)
 
 
-result, lst1 , lst2, attrs  = viss( 'p2_encounter_event', 
-         'close_points_table', 
-         'da_tables',
-         1, 
-         1.6, 
-         'ResRoute')
+result, lst1 , lst2, attrs  = viss( encounter_event_table, 
+         chamois_height, 
+         human_height, 
+         db,
+         vis_column)
