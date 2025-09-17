@@ -189,33 +189,51 @@ def Encounters(
         min_time    = 60,
         HDA_radius  = 250,
         d_gap_h     = 500,
-        height_h    = 1.6,  # Does not update!!! must update in QGIS code saves value in table comments
+        height_h    = 1.6,   # Does not update!!! must update in QGIS code saves value in table comments
         height_a    = 1,     # Does not update!!! must update in QGIS code saves value in table comments
         t_gap       = 8 * 60,     
         ECAh_radius = 10,
         db          = 'ResRoute',
-        where       = ''):
+        where       = '',
+        source_table    = None,
+        source_pairing  = None,
+        source_ppa      = None,
+        source_hda      = None,
+        id_column       = 'id_encounter',
+        vis_column      = 'vis_grid'):
 
-    assign_encounters(head+'encounter_event'+tail, t_gap,  db)
+    if not source_table:
+        source_table   = head+'encounter_event'+tail
 
+    assign_encounters_SQL(source_table, t_gap,  db, id_column = id_column, vis_column = vis_column)
 
-    source_table = head+'encounter_event'#+'_buff_'+str(HDA_radius)+'_filt_'+str(min_dist)+'_time_'+str(min_time)
-    source_pairing = head+'traj_ints'
-    source_ppa = head+'ppa'
-    source_hda = head+'hda'
+    if not source_pairing:
+        source_pairing = head+'traj_ints'+tail
 
+    if not source_ppa:    
+        source_ppa     = head+'ppa'+tail
+    
+    if not source_hda:
+        source_hda     = head+'hda'+tail
 
     start = time.time()
-    create_encounter_table(source_table, source_pairing, head, tail,  db)
-    ee_length = time.time()-start # 177.54374480247498 seconds
 
+    create_encounter_table(source_table, source_pairing, head, tail,  db, id_column = id_column, vis_column = vis_column)
+
+    ee_length = time.time()-start 
+
+    if not source_hda:
+        source_hda     = head+'hda'+tail
+
+    #if not id_column:
+    #    id_column = 'id_encounter'
 
     conn = psycopg2.connect(database= db , user='postgres')
 
     curs = conn.cursor()
 
     qurry = """\
-        COMMENT ON TABLE """ + head + """Encounter""" + tail+ """ IS 
+        COMMENT ON TABLE """ + head + """encounter""" + tail+ """ IS 
         'source_pairs   =  """ + str(source_pairing) + """
         source_ee   = """+ str(source_table) + """
         source_ppa  = """+ str(source_ppa) + """
@@ -227,7 +245,8 @@ def Encounters(
         min_time    = """+ str(min_time)+ """
         HDA_radius  = """+ str(HDA_radius) + """
         d_gap_h     = """+ str(d_gap_h)+"""
-        duration    = """+ str(ee_length)+"""'; 
+        duration    = """+ str(ee_length)+"""
+        id_column   = """+ str(id_column)+"""'; 
         """
 
     curs.execute(qurry)
@@ -1547,7 +1566,7 @@ def create_encounter_events(source_ppa, source_hda, source_pairings, head, tail,
     conn.close()
     return qurry
 
-def assign_encounters(source_table, threshold, db):
+def assign_encounters(source_table, threshold, db, id_column = None, vis_column = 'vis_grid'):
     """
     Assigns encounter IDs to consecutive encounter events based on specified criteria.
 
@@ -1610,7 +1629,7 @@ def assign_encounters(source_table, threshold, db):
             -- and time_h is not null
             -- and abs(extract(doy from time_h)-extract(doy from temps)) <= 15
             -- and date(time_h) != '1970-00-00'
-
+        where """+vis_column+""" = true
 
         order by 
             id_traj,
@@ -1618,6 +1637,8 @@ def assign_encounters(source_table, threshold, db):
             temps_2
         """
     curs.execute(qurry)
+
+    print("Data Querryed")
 
     id_encounter_event=[]
 
@@ -1683,9 +1704,13 @@ def assign_encounters(source_table, threshold, db):
 
     curs = conn.cursor()
 
+    if not id_column:
+        id_column = 'id_encounter'
+    
+
     curs.execute("""
     alter table """ + source_table + """
-    add id_encounter integer""")
+    add """ + id_column + """ integer""")
 
     curs.executemany("""
     update """ + source_table + """
@@ -1700,6 +1725,83 @@ def assign_encounters(source_table, threshold, db):
     
     ObsTime.setPrintFormat(save_print)
 
+def assign_encounters_SQL(source_table, threshold, db, id_column = 'id_encounter', vis_column = 'vis_grid'):
+    """
+    Assigns encounter IDs to consecutive encounter events based on specified criteria.
+
+    This function groups consecutive encounter events that meet defined temporal criteria 
+    into the same encounter by assigning matching encounter IDs. It updates the source table 
+    with these assigned IDs.
+
+    It should be called after visibility processing in QGIS (either within the QGIS application 
+    or via Python integration) and before creating encounter summary tables.
+
+    Parameters
+    ----------
+    source_table : str
+        Name of the table containing encounter events, typically created by `create_encounter_events`.
+
+    threshold : float
+        Maximum allowed time gap between two encounter events for them to be considered part 
+        of the same encounter.
+
+    db : str
+        Name or path of the SQL database containing the encounter events table to be updated.
+
+    Returns
+    -------
+    None
+        This function does not return a value.
+        It updates the encounter events table in the linked database by assigning encounter IDs.
+    """
+    
+    conn = psycopg2.connect(database= db , user='postgres')
+
+    curs = conn.cursor()
+
+    qurry = """\
+    
+    ALTER TABLE """+str(source_table)+""" 
+    ADD COLUMN """+str(id_column)+""" INT;
+
+    WITH ordered AS (
+    SELECT
+        *,
+        lag(id_traj)   OVER (ORDER BY id_traj,id_traj_2, temps_2, id_encounter_event) AS second_id_traj,
+        lag(id_traj_2) OVER (ORDER BY id_traj,id_traj_2, temps_2, id_encounter_event) AS second_id_traj_2,
+        lag(temps_2)   OVER (ORDER BY id_traj,id_traj_2, temps_2, id_encounter_event) AS second_temps_2
+    FROM """+str(source_table)+"""
+
+    where """+vis_column+""" = TRUE
+
+    ),
+    flagged AS (
+    SELECT *,
+        CASE
+        WHEN second_id_traj   IS DISTINCT FROM id_traj   THEN 1
+        WHEN second_id_traj_2 IS DISTINCT FROM id_traj_2 THEN 1
+        WHEN EXTRACT(EPOCH FROM (second_temps_2 - next_temps_2)) > """+str(threshold)+""" THEN 1
+        ELSE 0
+        END AS is_new_encounter
+    FROM ordered
+    ),
+    numbered AS (
+    SELECT *,
+        SUM(is_new_encounter) OVER (ORDER BY id_traj,id_traj_2, temps_2, id_encounter_event ROWS UNBOUNDED PRECEDING) AS new_id_encounter
+    FROM flagged
+    )
+    UPDATE """+str(source_table)+""" e
+    SET """+str(id_column)+""" = n.new_id_encounter
+    FROM numbered n
+    WHERE e.id_encounter_event = n.id_encounter_event;
+    """
+
+    curs.execute(qurry)
+
+    conn.commit()
+    curs.close()
+    conn.close()
+    
 def make_trace_segment(threshold_seconds):
     def trace_segment (track, i):
         id_i = track.getObsAnalyticalFeature('id_traj',i)
@@ -1847,7 +1949,7 @@ def isnan(number: Union[int, float]) -> bool:
     """Called to """
     return number != number
 
-def create_encounter_table(source_table, traj_pair_tables, head, tail, db):
+def create_encounter_table(source_table, traj_pair_tables, head, tail, db, id_column = 'id_encounter', vis_column = 'vis_grid'):
     """
     Creates and populates an encounter summary table in the specified SQL database.
 
@@ -1887,6 +1989,8 @@ def create_encounter_table(source_table, traj_pair_tables, head, tail, db):
         - vis (BOOLEAN)
     """
 
+    #if not id_column:
+    #    id_column = 'id_encounter'
 
     conn = psycopg2.connect(database=db, user='postgres')
 
@@ -1917,20 +2021,23 @@ def create_encounter_table(source_table, traj_pair_tables, head, tail, db):
             vis
         )
         SELECT 
-            a_.id_encounter, 
+            a_."""+id_column+""", 
             MIN(a_.temps_2::time) AS earliest,  -- Renamed for clarity
             MAX(a_.next_temps_2::time) AS latest,  -- Renamed for clarity
             b_.date_1 as date_animal,
             b_.date_2 as date_human,
             MIN(a_.shortest_length) AS min_dist, -- MIN(ST_Length(ST_ShortestLine(ppa, geom_line_2))) AS min_dist,
-            bool_or(a_.vis_grid) as vis
+            bool_or(a_."""+vis_column+""") as vis
         FROM 
             """+source_table+""" as a_
         join 	"""+traj_pair_tables+""" as b_
             on  b_.id_traj_1 = a_.id_traj 
             and b_.id_traj_2 = a_.id_traj_2 
+
+        where a_."""+vis_column+""" is true
+
         GROUP BY 
-            id_encounter,
+            """+id_column+""",
             b_.date_1,
             b_.date_2;
         """
