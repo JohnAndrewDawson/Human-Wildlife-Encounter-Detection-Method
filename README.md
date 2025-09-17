@@ -19,7 +19,7 @@ After adding the PostGIS extension, use the ResRoute_with_results.sql file to re
 
 - SQL environment to extract and query the ResRoute database
 - Python (with required libraries installed — see `requirements.txt`)
-- QGIS with the Visibility Analysis plugin by ___ (please specify author)
+- QGIS with the Visibility Analysis plugin by Zoran Čučković.
 
 Ensure that `my_utils.py` and `main.py` are located in the same folder, or call `my_utils.py` where you would like to use the functions.
 
