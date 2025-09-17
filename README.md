@@ -4,8 +4,14 @@ This project provides code to detect human-wildlife encounters from trajectory d
 
 ## Database Structure
 
-The project uses a SQL database. The data, results, and structured database are accessible in the included file at: 
-`_____` (please specify location).
+The project uses a SQL database. The data, results, and structured database are accessible in the included file : 
+`ResRoute_with_results.sql.
+
+To access this database, create a new database in PostgreSQL and add the PostGIS extension using the following command:
+
+CREATE EXTENSION postgis;
+
+After adding the PostGIS extension, use the ResRoute_with_results.sql file to restore the database.
 
 > **Note**: The database contains some redundant tables used for sensitivity analyses, which are not shown in the diagram.
 
@@ -43,20 +49,23 @@ Ensure that `my_utils.py` and `main.py` are located in the same folder, or call 
 
 To run the analysis step-by-step or customize experiments, call the following functions in order:
 
-| Step | Function Name           | Description                                           |
-|------|-------------------------|-------------------------------------------------------|
-| 1    | `find_comparable_routes` | Find comparable trajectories                         |
-| 2    | `create_ppa_table`       | Create PPA table                                      |
-| 3    | `create_filtered_hda_table` | Filter human trajectories & create HAD              |
-| 4    | `create_encounter_events` | Detect encounter events                             |
-| 5    | **Visibility Analysis (QGIS)** | Check obstacle conditions (run in QGIS)              |
-| 6    | `assign_encounters`      | Group encounter events into encounters               |
-| 7    | `create_encounter_table` | Create encounter geometries and encounter table      |
+| Step | Function Name              | Description                                     |
+|------|----------------------------|-------------------------------------------------|
+| 1    | `find_comparable_routes`   | Find comparable trajectories                    |
+| 2    | `create_ppa_table`         | Create PPA table                                |
+| 3    | `create_filtered_hda_table`| Filter human trajectories & create HAD          |
+| 4    | `create_encounter_events`  | Detect encounter events                         |
+| 5    | **Visibility Analysis (QGIS)** | Check obstacle conditions (run in QGIS)     |
+| 6    | `assign_encounters`      | Group encounter events into encounters            |
+| 7    | `create_encounter_table` | Create encounter geometries and encounter table   |
 
 ## Additional Notes
 
-- To replicate all experiments from the accompanying paper, use the included scripts:
-  - `main_paper_previs.py` (pre-visibility processing)
-  - `main_paper_postvis.py` (post-visibility processing)
+- To replicate all experiments from the accompanying paper, use the included script:
+  - `recreate_paper.py`
+    1. Run the first 5 cells.
+    2. Run `visibility.py` for each of the preset variable sets defined in the file.
+    3. Run the remaining cells in `recreate_paper.py`.
 
-- You can run individual functions with different parameters to experiment without rerunning previous steps.
+- You can also run individual functions with different parameters to experiment without rerunning previous steps.
+
