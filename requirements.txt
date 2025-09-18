@@ -1,0 +1,6 @@
+tracklib
+matplotlib
+progressbar2
+requests
+shapely
+psycopg2
