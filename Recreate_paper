@@ -38,7 +38,7 @@ d_gap_h     = 500
 height_h    = 1.6   # Does not update!!! must update in QGIS code saves value in table comments
 height_a    = 1     # Does not update!!! must update in QGIS code saves value in table comments
 t_gap       = 8 * 60     
-ECAh_radius = 10
+ECA_h_radius= 10
 where       = "select id_indiv from indiv_human"
 
 x_min = 942749.5
@@ -48,7 +48,6 @@ y_max = 6520411.5
 
 bbox = [x_min,x_max,y_min,y_max]
 db   = 'ResRoute'
-
 
 
 # %% First Half Before running visibility
@@ -67,7 +66,7 @@ my_utils.enounter_events(
         height_h,     # Does not update!!! must update in QGIS code saves value in table comments
         height_a,     # Does not update!!! must update in QGIS code saves value in table comments
         t_gap,     
-        ECAh_radius,
+        ECA_h_radius,
         db,
         where)
 
@@ -168,7 +167,7 @@ tail_d_gap_a_none    = '_d_gap_a_none'
 
 source_table = head+'traj_ints'+tail
 
-my_utils.create_ppa_table(source_table, head, tail_d_gap_a_none, db, bbox=bbox)
+my_utils.create_ppa_table(source_table, head, tail_d_gap_a_none, db, d_gap_a = d_gap_a,bbox=bbox)
 
 conn = psycopg2.connect(database= db , user='postgres')
 
@@ -265,7 +264,8 @@ tracks, tracks_simp_new_filter, id_traj = my_utils.create_filltered_hda_table(
                                                         HDA_radius, 
                                                         esp = min_dist, 
                                                         #mode = 1, 
-                                                        cells = [], 
+                                                        cells = [],
+                                                        d_gap_h = d_gap_h, 
                                                         bbox = bbox, 
                                                         bbox_grid = [],
                                                         time_max=min_time)
@@ -342,16 +342,8 @@ d_gap_h = 500
 
 
 
-
-
-
-
-
-
-
-
-# %% Seconf Half After running visibility
-
+# %% Second Half After running visibility
+# Create encounters for default settings
 my_utils.Encounters(
         bbox,
         head,
@@ -366,12 +358,12 @@ my_utils.Encounters(
         height_h,     # Does not update!!! must update in QGIS code saves value in table comments
         height_a,     # Does not update!!! must update in QGIS code saves value in table comments
         t_gap,     
-        ECAh_radius,
+        ECA_h_radius,
         db,
         where)
 
 
-# %% Seconf Half for HDA = 500
+# %% Second Half for HDA = 500
 
 my_utils.Encounters(
         bbox,
@@ -387,7 +379,7 @@ my_utils.Encounters(
         height_h=height_h,     # Does not update!!! must update in QGIS code saves value in table comments
         height_a=height_a,     # Does not update!!! must update in QGIS code saves value in table comments
         t_gap=t_gap,     
-        ECAh_radius=ECAh_radius,
+        ECA_h_radius=ECA_h_radius,
         db=db,
         where=where,
         source_table    = 'exp_encounter_event_hda_500',
@@ -396,7 +388,7 @@ my_utils.Encounters(
         source_hda      = 'exp_hda_500',
         id_column       = 'id_encounter')
 
-# %% Seconf Half for d_gap_h = None
+# %% Second Half for d_gap_h = None
 
 my_utils.Encounters(
         bbox,
@@ -412,7 +404,7 @@ my_utils.Encounters(
         height_h=height_h,     # Does not update!!! must update in QGIS code saves value in table comments
         height_a=height_a,     # Does not update!!! must update in QGIS code saves value in table comments
         t_gap=t_gap,     
-        ECAh_radius=ECAh_radius,
+        ECA_h_radius=ECA_h_radius,
         db=db,
         where=where,
         source_table    = 'exp_encounter_event_d_gap_h_none',
@@ -421,7 +413,7 @@ my_utils.Encounters(
         source_hda      = 'exp_hda_d_gap_h_none',
         id_column       = 'id_encounter')
 
-# %% Seconf Half for d_gap_a = None
+# %% Second Half for d_gap_a = None
 
 my_utils.Encounters(
         bbox,
@@ -437,7 +429,7 @@ my_utils.Encounters(
         height_h=height_h,     # Does not update!!! must update in QGIS code saves value in table comments
         height_a=height_a,     # Does not update!!! must update in QGIS code saves value in table comments
         t_gap=t_gap,     
-        ECAh_radius=ECAh_radius,
+        ECA_h_radius=ECA_h_radius,
         db=db,
         where=where,
         source_table    = 'exp_encounter_event_d_gap_a_none',
@@ -446,7 +438,7 @@ my_utils.Encounters(
         source_hda      = 'exp_hda_default',
         id_column       = 'id_encounter')
 
-# %% Seconf Half t_gap = 2 min
+# %% Second Half t_gap = 2 min
 
 my_utils.Encounters(
         bbox,
@@ -462,7 +454,7 @@ my_utils.Encounters(
         height_h = height_h,     # Does not update!!! must update in QGIS code saves value in table comments
         height_a = height_a,     # Does not update!!! must update in QGIS code saves value in table comments
         t_gap = 2*60,     
-        ECAh_radius = ECAh_radius,
+        ECA_h_radius= ECA_h_radius,
         db = db,
         where = where,
         source_table    = 'exp_encounter_event_Default',
@@ -471,7 +463,7 @@ my_utils.Encounters(
         source_hda      = 'exp_hda_default',
         id_column       = 'id_encounter_t_gap_2_min')
 
-# %% Seconf Half t_gap = 4 min
+# %% Second Half t_gap = 4 min
 
 my_utils.Encounters(
         bbox,
@@ -487,7 +479,7 @@ my_utils.Encounters(
         height_h = height_h,     # Does not update!!! must update in QGIS code saves value in table comments
         height_a = height_a,     # Does not update!!! must update in QGIS code saves value in table comments
         t_gap = 4*60,     
-        ECAh_radius = ECAh_radius,
+        ECA_h_radius= ECA_h_radius,
         db = db,
         where = where,
         source_table    = 'exp_encounter_event_Default',
@@ -496,7 +488,7 @@ my_utils.Encounters(
         source_hda      = 'exp_hda_default',
         id_column       = 'id_encounter_t_gap_4_min')
 
-# %% Seconf Half t_gap = 16 min
+# %% Second Half t_gap = 16 min
 
 my_utils.Encounters(
         bbox,
@@ -512,7 +504,7 @@ my_utils.Encounters(
         height_h = height_h,     # Does not update!!! must update in QGIS code saves value in table comments
         height_a = height_a,     # Does not update!!! must update in QGIS code saves value in table comments
         t_gap = 16*60,     
-        ECAh_radius = ECAh_radius,
+        ECA_h_radius= ECA_h_radius,
         db = db,
         where = where,
         source_table    = 'exp_encounter_event_Default',
@@ -521,7 +513,7 @@ my_utils.Encounters(
         source_hda      = 'exp_hda_default',
         id_column       = 'id_encounter_t_gap_16_min')
 
-# %% Seconf Half t_gap = 2 hours
+# %% Second Half t_gap = 2 hours
 
 my_utils.Encounters(
         bbox,
@@ -537,7 +529,7 @@ my_utils.Encounters(
         height_h = height_h,     # Does not update!!! must update in QGIS code saves value in table comments
         height_a = height_a,     # Does not update!!! must update in QGIS code saves value in table comments
         t_gap = 2*60*60,     
-        ECAh_radius = ECAh_radius,
+        ECA_h_radius= ECA_h_radius,
         db = db,
         where = where,
         source_table    = 'exp_encounter_event_Default',
@@ -546,7 +538,7 @@ my_utils.Encounters(
         source_hda      = 'exp_hda_default',
         id_column       = 'id_encounter_t_gap_2_h')
 
-# %% Seconf Half t_gap = 4 hours
+# %% Second Half t_gap = 4 hours
 
 my_utils.Encounters(
         bbox,
@@ -562,7 +554,7 @@ my_utils.Encounters(
         height_h = height_h,     # Does not update!!! must update in QGIS code saves value in table comments
         height_a = height_a,     # Does not update!!! must update in QGIS code saves value in table comments
         t_gap = 4*60*60,     
-        ECAh_radius = ECAh_radius,
+        ECA_h_radius= ECA_h_radius,
         db = db,
         where = where,
         source_table    = 'exp_encounter_event_Default',
@@ -571,7 +563,7 @@ my_utils.Encounters(
         source_hda      = 'exp_hda_default',
         id_column       = 'id_encounter_t_gap_4_h')
 
-# %% Seconf Half t_gap = 24 hours
+# %% Second Half t_gap = 24 hours
 
 my_utils.Encounters(
         bbox,
@@ -587,7 +579,7 @@ my_utils.Encounters(
         height_h = height_h,     # Does not update!!! must update in QGIS code saves value in table comments
         height_a = height_a,     # Does not update!!! must update in QGIS code saves value in table comments
         t_gap = 24*60*60,     
-        ECAh_radius = ECAh_radius,
+        ECA_h_radius= ECA_h_radius,
         db = db,
         where = where,
         source_table    = 'exp_encounter_event_Default',
@@ -596,7 +588,7 @@ my_utils.Encounters(
         source_hda      = 'exp_hda_default',
         id_column       = 'id_encounter_t_gap_24_h')
 
-# %% Seconf Half height_chamois = 0.8 m
+# %% Second Half height_chamois = 0.8 m
 
 my_utils.Encounters(
         bbox,
@@ -612,7 +604,7 @@ my_utils.Encounters(
         height_h = height_h,     # Does not update!!! must update in QGIS code saves value in table comments
         height_a = 0.8,          # Does not update!!! must update in QGIS code saves value in table comments
         t_gap = t_gap,     
-        ECAh_radius = ECAh_radius,
+        ECA_h_radius= ECA_h_radius,
         db = db,
         where = where,
         source_table    = 'exp_encounter_event_Default',
@@ -622,7 +614,7 @@ my_utils.Encounters(
         id_column       = 'id_encounter_chamois_8_dm',
         vis_column      = 'vis_grid_chamois_8_dm')
 
-# %% Seconf Half height_chamois = 1.2 m
+# %% Second Half height_chamois = 1.2 m
 
 my_utils.Encounters(
         bbox,
@@ -638,7 +630,7 @@ my_utils.Encounters(
         height_h = height_h,     # Does not update!!! must update in QGIS code saves value in table comments
         height_a = 1.2,          # Does not update!!! must update in QGIS code saves value in table comments
         t_gap = t_gap,     
-        ECAh_radius = ECAh_radius,
+        ECA_h_radius= ECA_h_radius,
         db = db,
         where = where,
         source_table    = 'exp_encounter_event_Default',
@@ -648,7 +640,7 @@ my_utils.Encounters(
         id_column       = 'id_encounter_chamois_12_dm',
         vis_column      = 'vis_grid_chamois_12_dm')
 
-# %% Seconf Half height_human = 2 m
+# %% Second Half height_human = 2 m
 
 my_utils.Encounters(
         bbox,
@@ -664,7 +656,7 @@ my_utils.Encounters(
         height_h = 2,                 # Does not update!!! must update in QGIS code saves value in table comments
         height_a = height_a,          # Does not update!!! must update in QGIS code saves value in table comments
         t_gap = t_gap,     
-        ECAh_radius = ECAh_radius,
+        ECA_h_radius= ECA_h_radius,
         db = db,
         where = where,
         source_table    = 'exp_encounter_event_Default',
@@ -673,4 +665,102 @@ my_utils.Encounters(
         source_hda      = 'exp_hda_default',
         id_column       = 'id_encounter_human_2_m',
         vis_column      = 'vis_grid_human_2_m')
+
+
+# %% Second Half ignoring visibility
+
+source_table = head + """encounter_event""" + tail
+
+conn = psycopg2.connect(database= db , user='postgres')
+
+curs = conn.cursor()
+
+qurry = """\
+
+        ALTER TABLE """ + source_table + """ DROP IF EXISTS vis_grid_all_true;
+        
+        ALTER TABLE """ + source_table + """
+        ADD vis_grid_all_true BOOLEAN NOT NULL DEFAULT TRUE;
+
+     """
+curs.execute(qurry)
+
+conn.commit()
+curs.close()
+conn.close()
+
+my_utils.Encounters(
+        bbox,
+        head,
+        tail = '_ignore_vis',
+        shift = shift,
+        max_speed = max_speed,  #Does not update
+        d_gap_a = d_gap_a,
+        min_dist = min_dist,
+        min_time = min_time,
+        HDA_radius = HDA_radius,
+        d_gap_h = d_gap_h,
+        height_h = height_h,     # Does not update!!! must update in QGIS code saves value in table comments
+        height_a = height_a,     # Does not update!!! must update in QGIS code saves value in table comments
+        t_gap = t_gap,     
+        ECA_h_radius= ECA_h_radius,
+        db = db,
+        where = where,
+        source_table    = 'exp_encounter_event_Default',
+        source_pairing  = 'exp_traj_ints_Default',
+        source_ppa      = 'exp_ppa_default',
+        source_hda      = 'exp_hda_500',
+        id_column       = 'id_encounter_ignore_vis',
+        vis_column      = 'vis_grid_all_true')
+
+
+
+# %% Second Half ignoring visibility hda_500
+
+source_table = head + """encounter_event_hda_500"""
+
+conn = psycopg2.connect(database= db , user='postgres')
+
+curs = conn.cursor()
+
+qurry = """\
+
+        ALTER TABLE """ + source_table + """ DROP IF EXISTS vis_grid_all_true;
+        
+        ALTER TABLE """ + source_table + """
+        ADD vis_grid_all_true BOOLEAN NOT NULL DEFAULT TRUE;
+
+     """
+curs.execute(qurry)
+
+conn.commit()
+curs.close()
+conn.close()
+
+my_utils.Encounters(
+        bbox,
+        head,
+        tail = '_ignore_vis_hda_500',
+        shift = shift,
+        max_speed = max_speed,  #Does not update
+        d_gap_a = d_gap_a,
+        min_dist = min_dist,
+        min_time = min_time,
+        HDA_radius = 500,
+        d_gap_h = d_gap_h,
+        height_h = height_h,     # Does not update!!! must update in QGIS code saves value in table comments
+        height_a = height_a,     # Does not update!!! must update in QGIS code saves value in table comments
+        t_gap = t_gap,     
+        ECA_h_radius= ECA_h_radius,
+        db = db,
+        where = where,
+        source_table    = 'exp_encounter_event_hda_500',
+        source_pairing  = 'exp_traj_ints_Default',
+        source_ppa      = 'exp_ppa_default',
+        source_hda      = 'exp_hda_default',
+        id_column       = 'id_encounter_ignore_vis',
+        vis_column      = 'vis_grid_all_true')
+
+
+
 # %%
