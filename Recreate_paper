@@ -5,7 +5,7 @@
 import sys
 import os
 
-folder_path = r"C:\Users\JADawson\Desktop\tracklib_linked"
+folder_path = # PATH TO TRACKLIB
 
 if folder_path not in sys.path:
     sys.path.insert(0, folder_path)
@@ -16,13 +16,6 @@ from tracklib.core import bbox
 import my_utils
 import psycopg2
 import numpy as np
-
-# Proxy settings (if needed)
-http_proxy = "http://proxy.ign.fr:3128"
-proxy = {
-    'http': http_proxy,
-    'https': http_proxy
-}
 
 ObsTime.setReadFormat("4Y-2M-2DT2h:2m:2sZ")
 
