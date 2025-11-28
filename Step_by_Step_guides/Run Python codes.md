@@ -42,11 +42,12 @@ After this, the visibility check (‘visibility.py’) needs to be run in a QGIS
 
 ![pyhton_code_marked](https://github.com/user-attachments/assets/e73cedc8-ff6c-4432-bffb-97169357263d)To recreate the results of the paper, ensure that the SQL database is restored and that a suitable environment is created.
 
+![what_to_change_in_code](https://github.com/user-attachments/assets/635991cd-5e1c-41d7-9292-6c184c092e8a)
+
+
 
 ![pyhton_code_marked_runcode](https://github.com/user-attachments/assets/ee9c9f3a-2cd1-49b4-9e57-a29c266530ee)
 
-![what_to_change_in_code](https://github.com/user-attachments/assets/635991cd-5e1c-41d7-9292-6c184c092e8a)
-<?xml version="1.0" encoding="UTF-8"?>
 
 
 All required inputs are commented out at the start of the document. This code is relatively slow. Remove the comments around the run you wish to perform, or uncomment the call for all commands at the end of the document. The QGIS app may appear unresponsive for the duration; 
