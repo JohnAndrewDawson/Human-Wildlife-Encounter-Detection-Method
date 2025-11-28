@@ -9,6 +9,9 @@ db_user             = 'postgres'
 
 db_password         = 'postgres'
 
+<img width="727" height="198" alt="image" src="https://github.com/user-attachments/assets/bbf582f5-aa4a-4cde-a540-94144cfb781f" />
+
+
 Open ‘my_utils.py’ and set:
 
 tracklib_folder_path = 'Path to tracklib'
@@ -17,11 +20,16 @@ tracklib_folder_path = 'Path to tracklib'
 Run the first 5 cells with the following titles:
 
 %% Create Encounter Events Default
+
 %% Create Encounter Events HAD_radius = 500
+
 %% Create Encounter Events HAD_radius = 500
+
 %% Create Encounter Events  d_gap_a = 99999
+
 %% Create Encounter Events  d_gap_h = 99999
 
+<img width="760" height="264" alt="image" src="https://github.com/user-attachments/assets/5743f44a-447d-498c-8c9f-4851689da7e0" />
 
 The results should look like this. (Takes ____ on my computer.)
 
