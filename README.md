@@ -72,18 +72,20 @@ To run the analysis step-by-step or customize experiments, call the following fu
 ## Included files
    + Folder/Figures - includes files to recreate all result figure from the papze
       + Figure_7.py -
-      + Figure_8.py -
       + Figure_9.py -
       + Figure_10.py -
       + Figure_11.py -
       + Figure_12.py -
+      + Figure_13.py -
    + Folder/Tables - Includes files to recreate all results tables from the paper
       + Table_2.py -
       + Table_3.py -
       + Table_4.py -
       + Table_5.py -
       + Table_6.py -
-      + Table_7.py - 
+      + Table_7.py -
+      + Table_8.py - 
+
    + Main.py - Reuns the encounter detection method for default settings
    + Recreate_paper.py - Runs encounter detection method for all experiments discussed in the paper (including the default paramiters)
    + visibity.py - Checks the visibilirty constraint on an encounter_events table settings must be ajusted for each run
