@@ -1,14 +1,13 @@
 # %% Import Lybrearys
 # Import Lybrearys
-# Standard Libraries
 
 import sys
 import os
 
-folder_path = # PATH TO TRACKLIB
+tracklib_folder_path = r"PATH TO TRACKLIB FOLDER MUST UPDATE"
 
-if folder_path not in sys.path:
-    sys.path.insert(0, folder_path)
+if tracklib_folder_path not in sys.path:
+    sys.path.insert(0, tracklib_folder_path)
     
 import time 
 from tracklib.core.obs_time import ObsTime
@@ -19,7 +18,6 @@ import numpy as np
 
 ObsTime.setReadFormat("4Y-2M-2DT2h:2m:2sZ")
 
-#--------------------#
 head        = 'exp_'
 tail        = '_Default'
 shift       = 15
@@ -41,7 +39,10 @@ y_min = 6504411.5
 y_max = 6520411.5
 
 bbox = [x_min,x_max,y_min,y_max]
-db = 'ResRoute'
+
+db          = 'ResRoute'
+db_user     = 'postgres'
+db_password = 'postgres'
 
 # %% First Half Before running visibility
 
@@ -60,7 +61,9 @@ my_utils.enounter_events(
         height_a,     # Does not update!!! must update in QGIS code saves value in table comments
         t_gap,     
         ECAh_radius,
-        db,
+        db, 
+        db_user, 
+        db_password,
         where)
 
 # %%  Second Half After running visibility
@@ -80,5 +83,9 @@ my_utils.Encounters(
         height_a    = height_a,     # Does not update!!! must update in QGIS code saves value in table comments
         t_gap       = t_gap,     
         ECAh_radius = ECAh_radius,
-        db          = 'ResRoute',
-        where       = where)
+        db          = db,
+        db_user     = db_user, 
+        db_password = db_password,
+        where       = where,
+        vis_column  = 'vis_grid',
+        vis_table   = 'vis_grid')
