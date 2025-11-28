@@ -1,4 +1,4 @@
-Open ‘____.py’ and change the following to match the locations on your computer:
+Open ‘Recreate_paper.py’ and change the following to match the locations on your computer:
 
 tracklib_folder_path = 'path to tracklib'
 
