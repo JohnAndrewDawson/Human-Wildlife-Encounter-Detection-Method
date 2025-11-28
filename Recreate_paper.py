@@ -5,10 +5,13 @@
 import sys
 import os
 
-folder_path = r"C:\Users\JADawson\Desktop\tracklib_linked"
+TRACKLIB_folder_path = r"PATH TO TRACKLIB"
+db          = 'ResRoute'
+db_user     = 'postgres'
+db_password = 'postgres'
 
-if folder_path not in sys.path:
-    sys.path.insert(0, folder_path)
+if TRACKLIB_folder_path not in sys.path:
+    sys.path.insert(0, TRACKLIB_folder_path)
     
 import time 
 from tracklib.core.obs_time import ObsTime
@@ -47,11 +50,6 @@ y_min = 6504411.5
 y_max = 6520411.5
 
 bbox = [x_min,x_max,y_min,y_max]
-
-db          = 'ResRoute'
-db_user     = 'postgres'
-db_password = 'postgres'
-
 
 # %% First Half Before running visibility
 
