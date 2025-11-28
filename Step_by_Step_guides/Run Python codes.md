@@ -54,13 +54,16 @@ All required inputs are commented out at the start of the document. This code is
 
 
 
-progress can be checked in PGAdmin by running:
+progress can be checked in PGAdmin4 even when QGIS is not responding by running the following in PGAdmin4:
 
 select count(*)
 from vis_grid;
 
+<img width="922" height="417" alt="image" src="https://github.com/user-attachments/assets/85ddce21-9600-47a1-8c45-597854e339aa" />
+
 
 After completion, run the buttons under:
+![runallbelowde](https://github.com/user-attachments/assets/4f449e2e-508b-4e0d-8538-0f2a4a595778)
 
 # %Post visibility create encounters
 
