@@ -43,11 +43,17 @@ def enounter_events(
         t_gap       = 8 * 60,     
         ECAh_radius = 10,
         db          = 'ResRoute',
+        db_user     = 'postgres',
+        db_password = 'postgres',
         where       = ''):
+    
+    start_time = time.time()
+    print('Running find_comparable_routes')
+    start_find_comparable_routes = time.time()
+    find_comparable_routes(where, shift, head, tail, db = db, db_user = db_user, db_password = db_password)
+    print('find_comparable_routes took '+str(time.time() - start_find_comparable_routes)+' seconds')
 
-    find_comparable_routes(where, shift, head, tail, db)
-
-    conn = psycopg2.connect(database= db , user='postgres')
+    conn = psycopg2.connect(database= db , user=db_user, password = db_password)
 
     curs = conn.cursor()
 
@@ -67,9 +73,12 @@ def enounter_events(
 
     source_table = head+'traj_ints'+tail
 
-    create_ppa_table(source_table, head, tail, db, bbox=bbox)
+    print('Running create_ppa_table')
+    start_create_ppa_table = time.time()
+    create_ppa_table(source_table, head, tail, db = db, db_user = db_user, db_password = db_password, bbox=bbox, d_gap_a = d_gap_a)
+    print('create_ppa_table took '+str(time.time()-start_create_ppa_table)+' seconds')
 
-    conn = psycopg2.connect(database= db , user='postgres')
+    conn = psycopg2.connect(database= db , user=db_user, password = db_password)
 
     curs = conn.cursor()
 
@@ -100,19 +109,26 @@ def enounter_events(
 
     source_table = head+'traj_ints'+tail
 
-    tracks, tracks_simp_new_filter, id_traj = create_filltered_hda_table(source_table, 
+    print('Running create_filltered_hda_table')
+    start_create_filltered_hda_table = time.time()
+    tracks, tracks_simp_new_filter, id_traj = create_filltered_hda_table(
+                                                        source_table, 
                                                         head, 
                                                         tail, 
-                                                        db, 
-                                                        HDA_radius, 
-                                                        esp = min_dist, 
+                                                        db = db, 
+                                                        db_user = db_user, 
+                                                        db_password = db_password, 
+                                                        buffer_size = HDA_radius, 
+                                                        esp = min_dist,
+                                                        d_gap_h = d_gap_h, 
                                                         #mode = 1, 
                                                         cells = [], 
                                                         bbox = bbox, 
                                                         bbox_grid = [],
                                                         time_max=min_time)
+    print('create_filltered_hda_table took '+str(time.time()-start_create_filltered_hda_table)+' seconds')
 
-    conn = psycopg2.connect(database= db , user='postgres')
+    conn = psycopg2.connect(database= db , user=db_user, password = db_password)
 
     curs = conn.cursor()
 
@@ -136,21 +152,22 @@ def enounter_events(
     source_hda       =  head+'hda'+tail
     source_pairing   =  head+'traj_ints'+tail
 
-    start = time.time()
-
+    print('Running create_encounter_events')
+    start_create_encounter_events = time.time()
     create_encounter_events(source_ppa, 
                             source_hda, 
                             source_pairing,
                             head, 
                             tail, 
                             comp_type = 'geom', 
-                            db = db)
+                            db = db, 
+                            db_user = db_user, 
+                            db_password = db_password)
+    print('create_encounter_events took '+str(time.time()-start_create_encounter_events)+' seconds')
 
-    ee_length = time.time()-start # 177.54374480247498 seconds
 
-    print(ee_length)
 
-    conn = psycopg2.connect(database= db , user='postgres')
+    conn = psycopg2.connect(database= db , user=db_user, password = db_password)
 
     curs = conn.cursor()
 
@@ -166,8 +183,7 @@ def enounter_events(
         min_dist    = """+ str(min_dist) + """
         min_time    = """+ str(min_time)+ """
         HDA_radius  = """+ str(HDA_radius) + """
-        d_gap_h     = """+ str(d_gap_h)+"""
-        duration    = """+ str(ee_length)+"""'; 
+        d_gap_h     = """+ str(d_gap_h)+"""; 
         """
 
     curs.execute(qurry)
@@ -175,7 +191,7 @@ def enounter_events(
     conn.commit()
     curs.close()
     conn.close()
-
+    print('Finished total run time: '+ str(time.time() - start_time)+ ' seconds')
     print('------WAIT Visibility Check should be run in QGIS Before proceeding------')
 
 def Encounters(
@@ -192,20 +208,49 @@ def Encounters(
         height_h    = 1.6,   # Does not update!!! must update in QGIS code saves value in table comments
         height_a    = 1,     # Does not update!!! must update in QGIS code saves value in table comments
         t_gap       = 8 * 60,     
-        ECAh_radius = 10,
+        ECA_h_radius = 10,
         db          = 'ResRoute',
+        db_user     = 'postgres',
+        db_password = 'postgres',
         where       = '',
         source_table    = None,
         source_pairing  = None,
         source_ppa      = None,
         source_hda      = None,
         id_column       = 'id_encounter',
-        vis_column      = 'vis_grid'):
+        vis_column      = 'vis_grid',
+        vis_table       = 'vis_grid'):
+
+    start_time = time.time()
 
     if not source_table:
         source_table   = head+'encounter_event'+tail
+    if vis_table:
+        print('Running join_vis_to_encounter_events')
+        start_join_vis_to_encounter_events = time.time()
+        join_vis_to_encounter_events(source_table,
+                                    vis_table, 
+                                    db = db, 
+                                    db_user = db_user, 
+                                    db_password = db_password,
+                                    vis_column = 'vis_grid')
+        print('join_vis_to_encounter_events took '+str(time.time()-start_join_vis_to_encounter_events)+' seconds')
+    elif vis_table is None:
+        print('Skipping join_vis_to_encounter_events')
+    else:
+        print('error vis_table entery is unexpected neither is or not')
 
-    assign_encounters_SQL(source_table, t_gap,  db, id_column = id_column, vis_column = vis_column)
+
+    print('Running assign_encounters_SQL')
+    start_assign_encounters_SQL = time.time()
+    assign_encounters_SQL(source_table, 
+                          t_gap,  
+                          db = db, 
+                          db_user = db_user, 
+                          db_password = db_password,  
+                          id_column = id_column, 
+                          vis_column = vis_column)
+    print('assign_encounters_SQL took '+str(time.time()-start_assign_encounters_SQL)+' seconds')
 
     if not source_pairing:
         source_pairing = head+'traj_ints'+tail
@@ -216,19 +261,25 @@ def Encounters(
     if not source_hda:
         source_hda     = head+'hda'+tail
 
-    start = time.time()
 
-    create_encounter_table(source_table, source_pairing, head, tail,  db, id_column = id_column, vis_column = vis_column)
-
-    ee_length = time.time()-start 
-
+    print('Running create_encounter_table')
+    start_create_encounter_table= time.time()
+    create_encounter_table(source_table, 
+                           source_pairing, 
+                           head, 
+                           tail,  
+                           db = db, 
+                           db_user = db_user, 
+                           db_password = db_password, 
+                           id_column  = id_column, 
+                           vis_column = vis_column,
+                           ppa_table  = source_ppa,
+                           ECA_h_radius = ECA_h_radius)
+    print('create_encounter_table took '+str(time.time()-start_create_encounter_table)+' seconds')
     if not source_hda:
         source_hda     = head+'hda'+tail
 
-    #if not id_column:
-    #    id_column = 'id_encounter'
-
-    conn = psycopg2.connect(database= db , user='postgres')
+    conn = psycopg2.connect(database= db , user=db_user, password = db_password)
 
     curs = conn.cursor()
 
@@ -245,19 +296,19 @@ def Encounters(
         min_time    = """+ str(min_time)+ """
         HDA_radius  = """+ str(HDA_radius) + """
         d_gap_h     = """+ str(d_gap_h)+"""
-        duration    = """+ str(ee_length)+"""
-        id_column   = """+ str(id_column)+"""'; 
+        id_column   = """+ str(id_column)+"""
+        ECA_h_radius= """+ str(ECA_h_radius)+"""'; 
         """
-
     curs.execute(qurry)
 
     conn.commit()
     curs.close()
     conn.close()
+    print('Finished total run time: '+ str(time.time() - start_time)+ ' seconds')
 
-def find_comparable_routes(where, shift, head, tail, db):
+def find_comparable_routes(where, shift, head, tail, db = 'ResRoute', db_user = 'postgres', db_password = 'postgres'):
     
-     """
+    """
     Identifies and stores candidate human-animal trajectory pairs for encounter detection.
 
     This function should be called first in the encounter detection workflow. It creates 
@@ -300,12 +351,12 @@ def find_comparable_routes(where, shift, head, tail, db):
         - date_human: DATE
         - min_dist: NUMERIC
         - vis: BOOLEAN
-     """
-     conn = psycopg2.connect(database= db , user='postgres')
+    """
+    conn = psycopg2.connect(database= db , user=db_user, password = db_password)
 
-     curs = conn.cursor()
+    curs = conn.cursor()
 
-     qurry = """\
+    qurry = """\
 
      DROP TABLE IF EXISTS  """ + head + """traj_ints""" + tail + """;
 
@@ -364,13 +415,13 @@ def find_comparable_routes(where, shift, head, tail, db):
     CREATE INDEX """ + head + """idx_traj_ints_id_traj_2""" + tail+ """ ON """ + head + """traj_ints""" + tail+ """(id_traj_2);
     CREATE INDEX """ + head + """idx_traj_ints_id_traj_1""" + tail+ """ ON """ + head + """traj_ints""" + tail+ """(id_traj_1);
     """
-     curs.execute(qurry)
+    curs.execute(qurry)
 
-     conn.commit()
-     curs.close()
-     conn.close()
+    conn.commit()
+    curs.close()
+    conn.close()
 
-def create_ppa_table(source_table, head, tail, db, buffer_size = 0, cells = [], bbox = [], bbox_grid = [], d_gap_a = '500'):
+def create_ppa_table(source_table, head, tail, db = 'ResRoute', db_user = 'postgres', db_password = 'postgres', buffer_size = 0, cells = [], bbox = [], bbox_grid = [], d_gap_a = '500'):
     """
     Extracts and stores Potential Path Areas (PPAs) for animal trajectory pairs.
 
@@ -429,7 +480,7 @@ def create_ppa_table(source_table, head, tail, db, buffer_size = 0, cells = [], 
         - y_coord              : DOUBLE PRECISION
     """
 
-    conn = psycopg2.connect(database= db, user='postgres')
+    conn = psycopg2.connect(database= db , user=db_user, password = db_password)
 
     curs = conn.cursor()
 
@@ -465,11 +516,11 @@ def create_ppa_table(source_table, head, tail, db, buffer_size = 0, cells = [], 
     curs.close()
     conn.close()
 
-    conn = psycopg2.connect(database= db, user='postgres')
+    conn = psycopg2.connect(database= db , user=db_user, password = db_password)
 
     curs = conn.cursor()
 
-    print('close_points_animal table initialized')
+    #print('close_points_animal table initialized')
 
     qurry = """\
         SELECT id_point, id_traj, temps,  st_x(geom), st_y(geom)
@@ -481,7 +532,7 @@ def create_ppa_table(source_table, head, tail, db, buffer_size = 0, cells = [], 
 
     id_point_lst = []
 
-    print('close_points_animal data pulled')
+    #print('close_points_animal data pulled')
 
     tracks = track_collection.TrackCollection()
     trace  = tk.Track([],1)
@@ -507,17 +558,17 @@ def create_ppa_table(source_table, head, tail, db, buffer_size = 0, cells = [], 
         id_point_lst.append(row[0])
         trace.addObs(Obs(ENUCoords(row[3],row[4],-1),tk.ObsTime.readTimestamp(str(row[2]))))
 
-    print('Data placed in track collection')
-    print('Building PPA')
+    #print('Data placed in track collection')
+    #print('Building PPA')
     tracks.addAnalyticalFeature(add_ppa)
-    print('PPA Finished')
+    #print('PPA Finished')
 
     d = list(zip(
         tracks.getAnalyticalFeature('add_ppa'),
         tracks.getAnalyticalFeature('id_point')
     ))
 
-    print('Adding PPA to Database')
+    #print('Adding PPA to Database')
 
     curs.executemany("""
         update """ + head + """close_points_animal""" + tail+ """
@@ -525,13 +576,13 @@ def create_ppa_table(source_table, head, tail, db, buffer_size = 0, cells = [], 
             where id_point = %s 
                 """,d)
 
-    print('Finished database update')
+    #print('Finished database update')
 
     conn.commit()
     curs.close()
     conn.close()
 
-    conn = psycopg2.connect(database= db, user='postgres')
+    conn = psycopg2.connect(database= db , user=db_user, password = db_password)
 
     curs = conn.cursor()
 
@@ -550,7 +601,7 @@ def create_ppa_table(source_table, head, tail, db, buffer_size = 0, cells = [], 
     curs.close()
     conn.close()
 
-    conn = psycopg2.connect(database= db, user='postgres')
+    conn = psycopg2.connect(database= db , user=db_user, password = db_password)
 
     curs = conn.cursor()
     
@@ -576,11 +627,11 @@ def create_ppa_table(source_table, head, tail, db, buffer_size = 0, cells = [], 
         x_coord				double precision,
         y_coord 			double precision
         """
-    print('PPA table created')
+    #print('PPA table created')
     
     table_name = head + 'ppa' + tail
     if not cells:
-        print('Skipping Partitioning')
+        #print('Skipping Partitioning')
 
         qurry = """\
                 create table """ + table_name + """ (
@@ -591,7 +642,7 @@ def create_ppa_table(source_table, head, tail, db, buffer_size = 0, cells = [], 
         conn.commit()
 
     elif cells:
-        print('Starting Partitioning')
+        #print('Starting Partitioning')
 
         bb_1_list_ppa,_ = table_partitioning(table_name, 
                    variables, 
@@ -602,7 +653,7 @@ def create_ppa_table(source_table, head, tail, db, buffer_size = 0, cells = [], 
                    cells,
                    db)
         
-    print('Starting PPA Data Insertions')
+    #print('Starting PPA Data Insertions')
 
     qurry = """\
     insert into """ + head + """ppa""" + tail+ """
@@ -671,7 +722,7 @@ def create_ppa_table(source_table, head, tail, db, buffer_size = 0, cells = [], 
     conn.commit()
     curs.close()
     conn.close() 
-    print('---Create PPA Finished---')
+    #print('---Create PPA Finished---')
 
 def add_ppa(track, i):
     """
@@ -692,7 +743,7 @@ def add_ppa(track, i):
     """
 
 
-    #print(track.tid)
+    ##print(track.tid)
     if i == track.size()-1:
         return shp.Point(0, 0).wkb
     x1=track.getX(i)
@@ -741,11 +792,11 @@ def add_ppa(track, i):
     # divide the major and minor axis by 2.0
     p[:, 0] = center[0] + major / 2.0 * ca * ct - minor / 2.0 * sa * st
     p[:, 1] = center[1] + major / 2.0 * sa * ct + minor / 2.0 * ca * st
-    #print(track.tid)
+    ##print(track.tid)
     return shp.Polygon(shp.LinearRing(p)).wkb
 
-def table_partitioning(table_name, variables, x_parition, y_partition, bbox, x_cells, y_cells,db):
-    conn = psycopg2.connect(database=db, user='postgres')
+def table_partitioning(table_name, variables, x_parition, y_partition, bbox, x_cells, y_cells, db = 'ResRoute', db_user = 'postgres', db_password = 'postgres'):
+    conn = psycopg2.connect(database= db , user=db_user, password = db_password)
     curs = conn.cursor()
 
     qurry = """\
@@ -753,7 +804,7 @@ def table_partitioning(table_name, variables, x_parition, y_partition, bbox, x_c
         """+ variables +"""
         )PARTITION BY RANGE ("""+ x_parition +""");
         """
-    #print(qurry)
+    ##print(qurry)
 
     curs.execute(qurry)
 
@@ -765,13 +816,13 @@ def table_partitioning(table_name, variables, x_parition, y_partition, bbox, x_c
     bb_2_list = []
 
     for i in range(len(x_breaks)-1):
-        #print("---"+str(i)+"---")
+        ##print("---"+str(i)+"---")
         qurry = """\
             create table """ + table_name+'_x'+str(i+1) + """ PARTITION OF """+table_name+"""
             FOR VALUES FROM ("""+str(x_breaks[i]) +""") TO ("""+ str(x_breaks[i+1])+""")
 	        PARTITION BY RANGE (""" + y_partition + """);
             """
-        #print(qurry)
+        ##print(qurry)
         curs.execute(qurry)
 
         for j in range(len(y_breaks)-1):
@@ -806,7 +857,7 @@ def table_partitioning(table_name, variables, x_parition, y_partition, bbox, x_c
 
     return bb_1_list, bb_2_list
 
-def create_filltered_hda_table(source_table, head, tail, db, buffer_size, esp, cells = [], bbox = [], bbox_grid = [], time_max=None, d_gap_h = '500'):
+def create_filltered_hda_table(source_table, head, tail, buffer_size, esp, db = 'ResRoute', db_user = 'postgres', db_password = 'postgres', cells = [], bbox = [], bbox_grid = [], time_max=None, d_gap_h = '500'):
     """
     Creates and stores Human Disturbance Areas (HDAs) for human trajectory pairs.
 
@@ -874,7 +925,7 @@ def create_filltered_hda_table(source_table, head, tail, db, buffer_size, esp, c
         - y_coord              : DOUBLE PRECISION
     """
 
-    conn = psycopg2.connect(database=db, user='postgres')
+    conn = psycopg2.connect(database= db , user=db_user, password = db_password)
 
     curs = conn.cursor()
 
@@ -905,9 +956,9 @@ def create_filltered_hda_table(source_table, head, tail, db, buffer_size, esp, c
     order by id_traj,temps;"""
 
     curs.execute(qurry)
-    print('Querry compleated')
+    #print('Querry compleated')
     r = curs.fetchall()
-    print('Querry data saved in variable')
+    #print('Querry data saved in variable')
 
     af_list = ['id_point',
             'id_sub_traj',
@@ -917,22 +968,22 @@ def create_filltered_hda_table(source_table, head, tail, db, buffer_size, esp, c
             'grid_x',
             'grid_y',
             'date_2']
-    print('af_list created')
+    #print('af_list created')
 
     tracks = add_traces_from_lists(r,af_list)
-    print('Data placed in track collection')
-    print('Prefiltered num of traj ' + str(len(tracks)))
+    #print('Data placed in track collection')
+    #print('Prefiltered num of traj ' + str(len(tracks)))
 
     #simplify
     for trace__ in tracks:
         trace__.cleanDuplicates("XY")
-    print('Duplicates deleated num of traj ' + str(len(tracks)))
+    #print('Duplicates deleated num of traj ' + str(len(tracks)))
 
     id_traj = []
     
     tracks_simp = track_collection.TrackCollection()
     
-    print('Starting simplicifation')
+    #print('Starting simplicifation')
     for trace in tracks:
 
         trace_simp = simplify(trace, esp, time_max=time_max)
@@ -940,18 +991,18 @@ def create_filltered_hda_table(source_table, head, tail, db, buffer_size, esp, c
 
         id_traj.extend([trace.tid]*len(trace_simp))
         
-    print('Simplification finished')
-    print('Number of traj after filtering : ' + str(len(tracks_simp)))
+    #print('Simplification finished')
+    #print('Number of traj after filtering : ' + str(len(tracks_simp)))
 
     #create da table
-    conn = psycopg2.connect(database=db, user='postgres')
+    conn = psycopg2.connect(database= db , user=db_user, password = db_password)
 
     curs = conn.cursor()
     
     qurry = 'DROP TABLE IF EXISTS ' + head + 'hda' + tail+ ';'
     curs.execute(qurry)
     conn.commit()
-    print('Dropped table if exists')
+    #print('Dropped table if exists')
 
     variables = """\
         id_point 	        integer, \n
@@ -978,7 +1029,7 @@ def create_filltered_hda_table(source_table, head, tail, db, buffer_size, esp, c
     table_name =  head + 'hda' + tail
 
     if not cells:
-        #print('here 8')
+        ##print('here 8')
 
         qurry = """\
                 create table """ + table_name + """ (
@@ -990,7 +1041,7 @@ def create_filltered_hda_table(source_table, head, tail, db, buffer_size, esp, c
         conn.commit()
     elif cells:
 
-        #print('here 8a')
+        ##print('here 8a')
 
         _,bb_2_list_hda = table_partitioning(table_name, 
                    variables, 
@@ -1001,8 +1052,8 @@ def create_filltered_hda_table(source_table, head, tail, db, buffer_size, esp, c
                    cells,
                    db)
     
-    conn = psycopg2.connect(database=db, user='postgres')
-    print('Event table created')
+    conn = psycopg2.connect(database= db , user=db_user, password = db_password)
+    #print('Event table created')
 
     curs = conn.cursor()
 
@@ -1026,7 +1077,7 @@ def create_filltered_hda_table(source_table, head, tail, db, buffer_size, esp, c
         tracks_simp.getAnalyticalFeature('grid_y')[1:]   # Pull the next 10 data points (shifted by 1)
     ))
 
-    print('Data prepared')
+    #print('Data prepared')
 
     curs.executemany("""
             insert into """ + head + """hda""" + tail+ """(
@@ -1067,14 +1118,14 @@ def create_filltered_hda_table(source_table, head, tail, db, buffer_size, esp, c
     conn.commit()
     curs.close()
     conn.close()
-    print('HDA table created')
+    #print('HDA table created')
 
     #populate da table
-    conn = psycopg2.connect(database=db, user='postgres')
+    conn = psycopg2.connect(database= db , user=db_user, password = db_password)
 
     curs = conn.cursor()
 
-    print('Filtering HDA table')
+    #print('Filtering HDA table')
 
     qurry = """\
 
@@ -1105,7 +1156,7 @@ def create_filltered_hda_table(source_table, head, tail, db, buffer_size, esp, c
     conn.commit()
     curs.close()
     conn.close()
-    print('Finished')
+    #print('Finished')
 
     return tracks, tracks_simp, id_traj
 
@@ -1245,7 +1296,7 @@ def read_time(track, track_simp, time_max):
     i = 0  # Initialize i for tracking position in the track_simp list
     
     while i < len(track_simp) - 1:  # Ensure i doesn't exceed the second-to-last element of track_simp
-        #print(f"Checking i = {i}, timestamp = {track_simp.getObs(i).timestamp}")
+        ##print(f"Checking i = {i}, timestamp = {track_simp.getObs(i).timestamp}")
         
         # Check if the time gap between consecutive observations in track_simp exceeds the max time threshold
         if track_simp.getObs(i + 1).timestamp - track_simp.getObs(i).timestamp > time_max:
@@ -1255,10 +1306,10 @@ def read_time(track, track_simp, time_max):
             
             # Move j to the correct position in track where the timestamp is just before the one in track_simp
             while j < len(track) and track.getObs(j).timestamp <= track_simp.getObs(i).timestamp:
-                #print('Moving j to position before track_simp[i]')
+                ##print('Moving j to position before track_simp[i]')
                 j += 1
             if track.getObs(j).timestamp == track_simp.getObs(i + 1).timestamp:
-                #print('there are no inbetween time steps')
+                ##print('there are no inbetween time steps')
                 i+=1
                 continue
             while j < len(track) and track.getObs(j).timestamp < track_simp.getObs(i + 1).timestamp and track.getObs(j).timestamp-track_simp.getObs(i).timestamp < time_max:
@@ -1268,7 +1319,7 @@ def read_time(track, track_simp, time_max):
             elif track.getObs(j-1).timestamp == track_simp.getObs(i).timestamp:
                     track_simp.insertObs(track.getObs(j), i + 1)
             else:
-                print('Sothing BAD')
+                #print('Sothing BAD')
                 break
         i += 1
 
@@ -1284,7 +1335,7 @@ def add_traces_from_lists(LINES, AF_list):
     if len(AF_list) != len(LINES[0])- 6:
         raise WrongArgumentError("Error: AF_list : " + str(len(AF_list)) + " does not match extra data " + str(len(LINES[0])- 6))
     else:
-        print('Made it to make AF')
+        #print('Made it to make AF')
         temp_lists = {}
         # Dynamically create lists based on the list_names and values
         for list_name in (AF_list):
@@ -1295,7 +1346,7 @@ def add_traces_from_lists(LINES, AF_list):
     trace.uid = LINES[0][0]
     trace.tid = LINES[0][1]
 
-    print('created the first trace : ' + str(trace.tid))
+    #print('created the first trace : ' + str(trace.tid))
     for row in LINES:
         
         id_user = row[0]
@@ -1316,7 +1367,7 @@ def add_traces_from_lists(LINES, AF_list):
             for af in AF_list:
                 trace.createAnalyticalFeature(af, temp_lists[af])
                 temp_lists[af] = []
-            #print(type(trace))
+            ##print(type(trace))
             tracks.addTrack(trace)
             trace = tk.Track([],1)
             trace.no_data_value = -99999
@@ -1381,7 +1432,7 @@ def add_traces_from_lists(LINES, AF_list):
 
     return tracks
 
-def create_encounter_events(source_ppa, source_hda, source_pairings, head, tail, comp_type, db, search_hda=None, search_ppa=None):
+def create_encounter_events(source_ppa, source_hda, source_pairings, head, tail, comp_type, db = 'ResRoute', db_user = 'postgres', db_password = 'postgres', search_hda=None, search_ppa=None):
     """
     Compares animal Potential Path Areas (PPA) to human Disturbance Areas (HDA) for temporally close trajectories.
 
@@ -1445,7 +1496,7 @@ def create_encounter_events(source_ppa, source_hda, source_pairings, head, tail,
     else:
         print('Search type not implamented')
 
-    conn = psycopg2.connect(database= db, user='postgres')
+    conn = psycopg2.connect(database= db , user=db_user, password = db_password)
 
     curs = conn.cursor()
 
@@ -1490,7 +1541,7 @@ def create_encounter_events(source_ppa, source_hda, source_pairings, head, tail,
     conn.close()
 
 
-    conn = psycopg2.connect(database= db, user='postgres')
+    conn = psycopg2.connect(database= db , user=db_user, password = db_password)
 
     curs = conn.cursor()
 
@@ -1536,7 +1587,7 @@ def create_encounter_events(source_ppa, source_hda, source_pairings, head, tail,
                 a_.next_geom ,
                 a_.next_temps ,
             
-                b_.geom_line,
+                a_.geom_line,
                 -- a_.ppa ,
             
             b_.id_traj ,
@@ -1566,7 +1617,7 @@ def create_encounter_events(source_ppa, source_hda, source_pairings, head, tail,
     conn.close()
     return qurry
 
-def assign_encounters(source_table, threshold, db, id_column = None, vis_column = 'vis_grid'):
+def assign_encounters(source_table, threshold, db = 'ResRoute', db_user = 'postgres', db_password = 'postgres', id_column = None, vis_column = 'vis_grid'):
     """
     Assigns encounter IDs to consecutive encounter events based on specified criteria.
 
@@ -1597,7 +1648,7 @@ def assign_encounters(source_table, threshold, db, id_column = None, vis_column 
     """
 
 
-    conn = psycopg2.connect(database= db, user='postgres')
+    conn = psycopg2.connect(database= db , user=db_user, password = db_password)
 
     curs = conn.cursor()
 
@@ -1638,7 +1689,7 @@ def assign_encounters(source_table, threshold, db, id_column = None, vis_column 
         """
     curs.execute(qurry)
 
-    print("Data Querryed")
+    #print("Data Querryed")
 
     id_encounter_event=[]
 
@@ -1700,7 +1751,7 @@ def assign_encounters(source_table, threshold, db, id_column = None, vis_column 
     psycopg2.extensions.register_adapter(float, nan_to_null)
     psycopg2.extensions.register_adapter(np.bool_, bool_to_bool)
 
-    conn = psycopg2.connect(database= db, user='postgres')
+    conn = psycopg2.connect(database= db , user=db_user, password = db_password)
 
     curs = conn.cursor()
 
@@ -1725,7 +1776,7 @@ def assign_encounters(source_table, threshold, db, id_column = None, vis_column 
     
     ObsTime.setPrintFormat(save_print)
 
-def assign_encounters_SQL(source_table, threshold, db, id_column = 'id_encounter', vis_column = 'vis_grid'):
+def assign_encounters_SQL(source_table, threshold, db = 'ResRoute', db_user = 'postgres', db_password = 'postgres', id_column = 'id_encounter', vis_column = 'vis_grid'):
     """
     Assigns encounter IDs to consecutive encounter events based on specified criteria.
 
@@ -1755,7 +1806,86 @@ def assign_encounters_SQL(source_table, threshold, db, id_column = 'id_encounter
         It updates the encounter events table in the linked database by assigning encounter IDs.
     """
     
-    conn = psycopg2.connect(database= db , user='postgres')
+    conn = psycopg2.connect(database= db , user=db_user, password = db_password)
+
+    curs = conn.cursor()
+
+    qurry = """\
+    
+    ALTER TABLE """+str(source_table)+""" 
+    ADD COLUMN """+str(id_column)+""" INT;
+
+    WITH ordered AS (
+    SELECT
+        *,
+		temps_2 as start_time,
+		next_temps_2 as end_time,
+        lag(id_traj)   OVER (ORDER BY id_traj,id_traj_2, temps_2, id_encounter_event) AS prev_id_traj,
+        lag(id_traj_2) OVER (ORDER BY id_traj,id_traj_2, temps_2, id_encounter_event) AS prev_id_traj_2,
+        lag(next_temps_2)   OVER (ORDER BY id_traj,id_traj_2, temps_2, id_encounter_event) AS prev_end_time
+    FROM """+str(source_table)+"""
+
+    where """+vis_column+""" = TRUE
+
+    ),
+    flagged AS (
+    SELECT *,
+        CASE
+        WHEN prev_id_traj   IS DISTINCT FROM id_traj   THEN 1
+        WHEN prev_id_traj_2 IS DISTINCT FROM id_traj_2 THEN 1
+        WHEN EXTRACT(EPOCH FROM (start_time - prev_end_time)) > """+str(threshold)+""" THEN 1
+        ELSE 0
+        END AS is_new_encounter
+    FROM ordered
+    ),
+    numbered AS (
+    SELECT *,
+        SUM(is_new_encounter) OVER (ORDER BY id_traj,id_traj_2, temps_2, id_encounter_event ROWS UNBOUNDED PRECEDING) AS new_id_encounter
+    FROM flagged
+    )
+    UPDATE """+str(source_table)+""" e
+    SET """+str(id_column)+""" = n.new_id_encounter
+    FROM numbered n
+    WHERE e.id_encounter_event = n.id_encounter_event;
+    """
+
+    curs.execute(qurry)
+
+    conn.commit()
+    curs.close()
+    conn.close()
+
+def assign_encounters_SQL_old(source_table, threshold, db = 'ResRoute', db_user = 'postgres', db_password = 'postgres', id_column = 'id_encounter', vis_column = 'vis_grid'):
+    """
+    Assigns encounter IDs to consecutive encounter events based on specified criteria.
+
+    This function groups consecutive encounter events that meet defined temporal criteria 
+    into the same encounter by assigning matching encounter IDs. It updates the source table 
+    with these assigned IDs.
+
+    It should be called after visibility processing in QGIS (either within the QGIS application 
+    or via Python integration) and before creating encounter summary tables.
+
+    Parameters
+    ----------
+    source_table : str
+        Name of the table containing encounter events, typically created by `create_encounter_events`.
+
+    threshold : float
+        Maximum allowed time gap between two encounter events for them to be considered part 
+        of the same encounter.
+
+    db : str
+        Name or path of the SQL database containing the encounter events table to be updated.
+
+    Returns
+    -------
+    None
+        This function does not return a value.
+        It updates the encounter events table in the linked database by assigning encounter IDs.
+    """
+    
+    conn = psycopg2.connect(database= db , user=db_user, password = db_password)
 
     curs = conn.cursor()
 
@@ -1949,7 +2079,7 @@ def isnan(number: Union[int, float]) -> bool:
     """Called to """
     return number != number
 
-def create_encounter_table(source_table, traj_pair_tables, head, tail, db, id_column = 'id_encounter', vis_column = 'vis_grid'):
+def create_encounter_table_without_geom(source_table, traj_pair_tables, head, tail, db = 'ResRoute', db_user = 'postgres', db_password = 'postgres', id_column = 'id_encounter', vis_column = 'vis_grid'):
     """
     Creates and populates an encounter summary table in the specified SQL database.
 
@@ -1992,7 +2122,7 @@ def create_encounter_table(source_table, traj_pair_tables, head, tail, db, id_co
     #if not id_column:
     #    id_column = 'id_encounter'
 
-    conn = psycopg2.connect(database=db, user='postgres')
+    conn = psycopg2.connect(database= db , user=db_user, password = db_password)
 
     curs = conn.cursor()
 
@@ -2042,6 +2172,239 @@ def create_encounter_table(source_table, traj_pair_tables, head, tail, db, id_co
             b_.date_2;
         """
 	)
+
+    conn.commit()
+    curs.close()
+    conn.close()
+
+def create_encounter_table(source_table, traj_pair_tables, head, tail, db = 'ResRoute', db_user = 'postgres', db_password = 'postgres', ppa_table = None, id_column = 'id_encounter', vis_column = 'vis_grid', ECA_h_radius = 10):
+    """
+    Creates and populates an encounter summary table in the specified SQL database.
+
+    This function should be run after `assign_encounters` has completed. It generates a table 
+    that summarizes encounter events between trajectories, using data from the source encounter 
+    events and trajectory pair tables.
+
+    Parameters
+    ----------
+    source_table : str
+        Name of the table containing encounter events, typically created by `create_encounter_events`.
+
+    traj_pair_tables : str
+        Name of the table containing trajectory pairs, typically created by `find_comparable_routes`.
+
+    head : str
+        Prefix to add to the encounter table name (useful for testing or distinguishing tables).
+
+    tail : str
+        Suffix to add to the encounter table name (useful for testing or distinguishing tables).
+
+    db : str
+        Name or path of the SQL database where the encounter table will be created and updated.
+
+    Returns
+    -------
+    None
+        This function does not return a value.
+        It creates and populates an encounter table in the database with the following columns:
+
+        - id_encounter (INTEGER PRIMARY KEY)
+        - earliest_time (TIMESTAMP or DATETIME)
+        - latest_time (TIMESTAMP or DATETIME)
+        - date_animal (DATE)
+        - date_human (DATE)
+        - min_dist (NUMERIC)
+        - vis (BOOLEAN)
+    """
+
+    #if not id_column:
+    #    id_column = 'id_encounter'
+
+    if not ppa_table:
+        ppa_table = head+'ppa'+tail
+
+    conn = psycopg2.connect(database= db , user=db_user, password = db_password)
+
+    curs = conn.cursor()
+
+    curs.execute("""
+
+        drop table if exists """+head+"""Encounter"""+tail+""";
+
+        CREATE TABLE """+head+"""Encounter"""+tail+"""(
+            id_encounter integer primary key,
+            earliest time,
+            latest time,
+            date_animal date,
+            date_human date,
+            min_dist numeric,
+            vis boolean,
+            ECA_a geometry,
+            ECA_h geometry
+        );
+
+        INSERT INTO """+head+"""Encounter"""+tail+""" (
+            id_encounter,
+            earliest,
+            latest,
+            date_animal,
+            date_human,
+            min_dist,
+            vis,
+            ECA_a,
+            ECA_h
+        )
+        SELECT 
+            a_."""+id_column+""", 
+            MIN(a_.temps_2::time) AS earliest,  -- Renamed for clarity
+            MAX(a_.next_temps_2::time) AS latest,  -- Renamed for clarity
+            b_.date_1 as date_animal,
+            b_.date_2 as date_human,
+            MIN(a_.shortest_length) AS min_dist, -- MIN(ST_Length(ST_ShortestLine(ppa, geom_line_2))) AS min_dist,
+            bool_or(a_."""+vis_column+""") as vis,
+            st_union(ppa_.ppa),
+            st_union(st_buffer(a_.geom_line_2, """+str(ECA_h_radius) +"""))
+        FROM 
+            """+source_table+""" as a_
+        join 	"""+traj_pair_tables+""" as b_
+            on  b_.id_traj_1 = a_.id_traj 
+            and b_.id_traj_2 = a_.id_traj_2
+        inner join """+ ppa_table+""" as ppa_
+            on ppa_.id_point = a_.id_point
+        where a_."""+vis_column+""" is true
+        GROUP BY 
+            """+id_column+""",
+            b_.date_1,
+            b_.date_2;
+        """
+	)
+
+    conn.commit()
+    curs.close()
+    conn.close()
+
+def join_vis_to_encounter_events(encounter_event_table, table_vis_grid, db = 'ResRoute', db_user = 'postgres', db_password = 'postgres',  vis_column = 'vis_grid'):
+    """
+    Creates and populates an encounter summary table in the specified SQL database.
+
+    This function should be run after `assign_encounters` has completed. It generates a table 
+    that summarizes encounter events between trajectories, using data from the source encounter 
+    events and trajectory pair tables.
+
+    Parameters
+    ----------
+    encounter_event_table : str
+        Name of the table containing encounter events, typically created by `create_encounter_events`.
+
+    table_vis_grid : str
+        Name of the table containing visibility information between grid cells, typically created by 'visibility.py` run in QGIS.
+
+    db : str
+        Name or path of the SQL database where the encounter table will be created and updated.
+
+    Returns
+    -------
+    None
+        This function does not return a value.
+        It creates and populated the visibility colum on an encounter events table:
+
+    """
+
+    conn = psycopg2.connect(database= db , user=db_user, password = db_password)
+
+    curs = conn.cursor()
+
+    
+    ll_x = 924987.5
+    ll_y = 6500012.5
+    query = """\
+        DROP TABLE IF EXISTS ttt;
+
+        CREATE TEMPORARY TABLE ttt AS
+        (SELECT 
+                id_encounter_event,
+                id_point,
+                geom,
+                id_point_2,
+                geom_2,
+                floor((st_x(geom)-"""+ str(ll_x) +""")/25) as x_grid, 
+                floor((st_y(geom)-"""+ str(ll_y) +""")/25) as y_grid,
+                floor((st_x(geom_2)-"""+ str(ll_x) +""")/25) as x_grid_2, 
+                floor((st_y(geom_2)-"""+ str(ll_y) +""")/25) as y_grid_2
+            FROM """+ encounter_event_table +"""
+            UNION ALL	
+            SELECT 
+                id_encounter_event, 
+                next_id_point,
+                next_geom,
+                next_id_point_2,
+                next_geom_2,
+                floor((st_x(next_geom)-"""+ str(ll_x) +""")/25) as x_grid, 
+                floor((st_y(next_geom)-"""+ str(ll_y) +""")/25) as y_grid,
+                floor((st_x(next_geom_2)-"""+ str(ll_x) +""")/25) as x_grid_2, 
+                floor((st_y(next_geom_2)-"""+ str(ll_y) +""")/25) as y_grid_2            
+            FROM """+ encounter_event_table +""" 
+            UNION ALL	
+            SELECT 
+                id_encounter_event,
+                id_point,
+                geom,
+                next_id_point_2,
+                next_geom_2,
+                floor((st_x(geom)-"""+ str(ll_x) +""")/25) as x_grid, 
+                floor((st_y(geom)-"""+ str(ll_y) +""")/25 )as y_grid,
+                floor((st_x(next_geom_2)-"""+ str(ll_x) +""")/25) as x_grid_2, 
+                floor((st_y(next_geom_2)-"""+ str(ll_y) +""")/25) as y_grid_2 
+            FROM """+ encounter_event_table +""" 
+            UNION ALL	
+            SELECT 
+                id_encounter_event,
+                next_id_point,
+                next_geom,
+                id_point_2,
+                geom_2,
+                floor((st_x(next_geom)-"""+ str(ll_x) +""")/25) as x_grid, 
+                floor((st_y(next_geom)-"""+ str(ll_y) +""")/25) as y_grid,
+                floor((st_x(geom_2)-"""+ str(ll_x) +""")/25) as x_grid_2, 
+                floor((st_y(geom_2)-"""+ str(ll_y) +""")/25) as y_grid_2             
+            FROM """+ encounter_event_table +""" 
+            ORDER BY id_encounter_event, x_grid, y_grid
+        );
+
+                    
+        drop table if exists temppp;
+        CREATE TEMPORARY TABLE temppp (
+            id_encounter_event INTEGER PRIMARY KEY,
+            vis BOOLEAN);
+
+        insert into temppp (id_encounter_event, vis)	
+        select a_.id_encounter_event, bool_or(b_.vis)
+        from ttt as a_
+        left join """+table_vis_grid+""" as b_
+            on			a_.x_grid	= b_.x_grid
+            and 		a_.y_grid	= b_.y_grid
+            and 		a_.x_grid_2	= b_.x_grid_2
+            and 		a_.y_grid_2	= b_.y_grid_2
+        group by id_encounter_event;
+
+        alter table """+ encounter_event_table +"""
+        DROP COLUMN IF EXISTS """+vis_column+""";
+                            
+        alter table """+ encounter_event_table +"""
+        add """+vis_column+""" boolean;
+
+        drop index if exists id_encounter_event_"""+ encounter_event_table +"""_index;
+        CREATE INDEX id_encounter_event_"""+ encounter_event_table +"""_index 
+        ON """+ encounter_event_table +"""(id_encounter_event);
+
+
+        UPDATE """+ encounter_event_table +""" as a_
+        SET """+vis_column+""" = (
+        SELECT vis
+        FROM temppp
+        WHERE temppp.id_encounter_event = a_.id_encounter_event)"""
+
+    curs.execute(query)
 
     conn.commit()
     curs.close()
