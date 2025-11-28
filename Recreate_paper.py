@@ -5,7 +5,7 @@
 import sys
 import os
 
-folder_path = # PATH TO TRACKLIB
+folder_path = r"C:\Users\JADawson\Desktop\tracklib_linked"
 
 if folder_path not in sys.path:
     sys.path.insert(0, folder_path)
@@ -16,6 +16,13 @@ from tracklib.core import bbox
 import my_utils
 import psycopg2
 import numpy as np
+
+# Proxy settings (if needed)
+http_proxy = "http://proxy.ign.fr:3128"
+proxy = {
+    'http': http_proxy,
+    'https': http_proxy
+}
 
 ObsTime.setReadFormat("4Y-2M-2DT2h:2m:2sZ")
 
@@ -40,7 +47,10 @@ y_min = 6504411.5
 y_max = 6520411.5
 
 bbox = [x_min,x_max,y_min,y_max]
-db   = 'ResRoute'
+
+db          = 'ResRoute'
+db_user     = 'postgres'
+db_password = 'postgres'
 
 
 # %% First Half Before running visibility
@@ -62,9 +72,6 @@ my_utils.enounter_events(
         ECA_h_radius,
         db,
         where)
-
-
-
 
 # %% HDA = 500
 
@@ -253,10 +260,11 @@ tracks, tracks_simp_new_filter, id_traj = my_utils.create_filltered_hda_table(
                                                         source_table, 
                                                         head, 
                                                         tail_d_gap_h_none, 
-                                                        db, 
                                                         HDA_radius, 
                                                         esp = min_dist, 
-                                                        #mode = 1, 
+                                                        db = db,
+                                                        db_user = 'postgres', 
+                                                        db_password = 'postgres', 
                                                         cells = [],
                                                         d_gap_h = d_gap_h, 
                                                         bbox = bbox, 
@@ -330,11 +338,6 @@ conn.close()
 
 d_gap_h = 500
 
-
-
-
-
-
 # %% Second Half After running visibility
 # Create encounters for default settings
 my_utils.Encounters(
@@ -379,7 +382,9 @@ my_utils.Encounters(
         source_pairing  = 'exp_traj_ints_default',
         source_ppa      = 'exp_ppa_default',
         source_hda      = 'exp_hda_500',
-        id_column       = 'id_encounter')
+        id_column       = 'id_encounter',
+        vis_column      = 'vis_grid',
+        vis_table       = 'vis_grid')
 
 # %% Second Half for d_gap_h = None
 
@@ -404,7 +409,9 @@ my_utils.Encounters(
         source_pairing  = 'exp_traj_ints_Default',
         source_ppa      = 'exp_ppa_Default',
         source_hda      = 'exp_hda_d_gap_h_none',
-        id_column       = 'id_encounter')
+        id_column       = 'id_encounter',
+        vis_column      = 'vis_grid',
+        vis_table       = 'vis_grid')
 
 # %% Second Half for d_gap_a = None
 
@@ -429,7 +436,9 @@ my_utils.Encounters(
         source_pairing  = 'exp_traj_ints_Default',
         source_ppa      = 'exp_ppa_d_gap_a_none',
         source_hda      = 'exp_hda_default',
-        id_column       = 'id_encounter')
+        id_column       = 'id_encounter',
+        vis_column      = 'vis_grid',
+        vis_table       = 'vis_grid')
 
 # %% Second Half t_gap = 2 min
 
@@ -454,7 +463,9 @@ my_utils.Encounters(
         source_pairing  = 'exp_traj_ints_Default',
         source_ppa      = 'exp_ppa_default',
         source_hda      = 'exp_hda_default',
-        id_column       = 'id_encounter_t_gap_2_min')
+        id_column       = 'id_encounter_t_gap_2_min',
+        vis_column      = 'vis_grid',
+        vis_table       = 'vis_grid')
 
 # %% Second Half t_gap = 4 min
 
@@ -479,7 +490,9 @@ my_utils.Encounters(
         source_pairing  = 'exp_traj_ints_Default',
         source_ppa      = 'exp_ppa_default',
         source_hda      = 'exp_hda_default',
-        id_column       = 'id_encounter_t_gap_4_min')
+        id_column       = 'id_encounter_t_gap_4_min',
+        vis_column      = 'vis_grid',
+        vis_table       = 'vis_grid')
 
 # %% Second Half t_gap = 16 min
 
@@ -504,7 +517,9 @@ my_utils.Encounters(
         source_pairing  = 'exp_traj_ints_Default',
         source_ppa      = 'exp_ppa_default',
         source_hda      = 'exp_hda_default',
-        id_column       = 'id_encounter_t_gap_16_min')
+        id_column       = 'id_encounter_t_gap_16_min',
+        vis_column      = 'vis_grid',
+        vis_table       = 'vis_grid')
 
 # %% Second Half t_gap = 2 hours
 
@@ -529,7 +544,9 @@ my_utils.Encounters(
         source_pairing  = 'exp_traj_ints_Default',
         source_ppa      = 'exp_ppa_default',
         source_hda      = 'exp_hda_default',
-        id_column       = 'id_encounter_t_gap_2_h')
+        id_column       = 'id_encounter_t_gap_2_h',
+        vis_column      = 'vis_grid',
+        vis_table       = 'vis_grid')
 
 # %% Second Half t_gap = 4 hours
 
@@ -554,7 +571,9 @@ my_utils.Encounters(
         source_pairing  = 'exp_traj_ints_Default',
         source_ppa      = 'exp_ppa_default',
         source_hda      = 'exp_hda_default',
-        id_column       = 'id_encounter_t_gap_4_h')
+        id_column       = 'id_encounter_t_gap_4_h',
+        vis_column      = 'vis_grid',
+        vis_table       = 'vis_grid')
 
 # %% Second Half t_gap = 24 hours
 
@@ -579,7 +598,9 @@ my_utils.Encounters(
         source_pairing  = 'exp_traj_ints_Default',
         source_ppa      = 'exp_ppa_default',
         source_hda      = 'exp_hda_default',
-        id_column       = 'id_encounter_t_gap_24_h')
+        id_column       = 'id_encounter_t_gap_24_h',
+        vis_column      = 'vis_grid',
+        vis_table       = 'vis_grid')
 
 # %% Second Half height_chamois = 0.8 m
 
@@ -605,7 +626,8 @@ my_utils.Encounters(
         source_ppa      = 'exp_ppa_default',
         source_hda      = 'exp_hda_default',
         id_column       = 'id_encounter_chamois_8_dm',
-        vis_column      = 'vis_grid_chamois_8_dm')
+        vis_column      = 'vis_grid_chamois_8_dm',
+        vis_table       = 'vis_grid_chamois_8_dm')
 
 # %% Second Half height_chamois = 1.2 m
 
@@ -631,7 +653,9 @@ my_utils.Encounters(
         source_ppa      = 'exp_ppa_default',
         source_hda      = 'exp_hda_default',
         id_column       = 'id_encounter_chamois_12_dm',
-        vis_column      = 'vis_grid_chamois_12_dm')
+        vis_column      = 'vis_grid_chamois_12_dm',
+        vis_table       = 'vis_grid_chamois_12_dm')
+
 
 # %% Second Half height_human = 2 m
 
@@ -657,7 +681,9 @@ my_utils.Encounters(
         source_ppa      = 'exp_ppa_default',
         source_hda      = 'exp_hda_default',
         id_column       = 'id_encounter_human_2_m',
-        vis_column      = 'vis_grid_human_2_m')
+        vis_column      = 'vis_grid_human_2_m',
+        vis_table       = 'vis_grid_human_2_m')
+
 
 
 # %% Second Half ignoring visibility
@@ -704,7 +730,9 @@ my_utils.Encounters(
         source_ppa      = 'exp_ppa_default',
         source_hda      = 'exp_hda_500',
         id_column       = 'id_encounter_ignore_vis',
-        vis_column      = 'vis_grid_all_true')
+        vis_column      = 'vis_grid_all_true',
+        vis_table       = None # Skips joining visibility
+        )
 
 
 
@@ -752,7 +780,9 @@ my_utils.Encounters(
         source_ppa      = 'exp_ppa_default',
         source_hda      = 'exp_hda_default',
         id_column       = 'id_encounter_ignore_vis',
-        vis_column      = 'vis_grid_all_true')
+        vis_column      = 'vis_grid_all_true',
+        vis_table       = None # Skips joining visibility
+        )
 
 
 
