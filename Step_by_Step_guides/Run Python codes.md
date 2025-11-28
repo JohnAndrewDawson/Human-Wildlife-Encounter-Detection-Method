@@ -2,23 +2,25 @@ To recreate the results of the paper, ensure that the SQL database is restored a
 Open ‘____.py’ and change the following to match the locations on your computer:
 
 tracklib_folder_path = 'path to tracklib'
-db                  = 'ResRoute'
-db_user             = 'postgres'
-db_password         = 'postgres'
 
+db                  = 'ResRoute'
+
+db_user             = 'postgres'
+
+db_password         = 'postgres'
 
 Open ‘my_utils.py’ and set:
 
-tracklib_folder_path = 'path to tracklib'
+tracklib_folder_path = 'Path to tracklib'
 
 
 Run the first 5 cells with the following titles:
 
 %% Create Encounter Events Default
-%% Create Encounter Events HAD_radius =500
-%% Create Encounter Events HAD_radius =500
-%% Create Encounter Events  d_gap_a=99999
-%% Create Encounter Events  d_gap_h=99999
+%% Create Encounter Events HAD_radius = 500
+%% Create Encounter Events HAD_radius = 500
+%% Create Encounter Events  d_gap_a = 99999
+%% Create Encounter Events  d_gap_h = 99999
 
 
 The results should look like this. (Takes ____ on my computer.)
